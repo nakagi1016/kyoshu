@@ -123,6 +123,8 @@ textarea{width:100%;box-sizing:border-box;height:90px;background:var(--bg);color
       <label class="set" for="th">この高さ以上持ち上げたら挙手<output id="thOut">30 cm</output>
         <input type="range" id="th" min="15" max="60" step="1" value="30"></label>
       <p class="note">膝の上から頭の上まで上げると60〜90cmほど動きます。判定が違っていたら、メイン画面をタップすると切り替わります。</p>
+      <div class="checks"><label><input type="checkbox" id="strict" checked> 下ろし判定を厳しく（はっきり下ろすまで挙手のまま）</label></div>
+      <p class="note">オンだと、上げたのと同じ量を勢いよく下ろしたときだけ「下」になります。ゆっくり下ろす・向きを変えるだけでは下がりません。誤って下がる心配がない代わりに、そっと下ろしたときはタップで下げてください。</p>
     </section>
 
     <section>
@@ -175,6 +177,7 @@ function createDetector(opt){
   const o=Object.assign({
     th:0.30,         // 挙手と判定する持ち上げ量 [m]
     downRatio:0.75,  // 解除に必要な下ろし量（×th）
+    strictDown:true, // true: 勢いのある動きで、上げと同じ量を下ろしたときだけ解除（ゆっくり・向きでは解除しない）
     burstOn:3,     // バースト開始：平滑後の加速度 [m/s^2]
     burstOff:2,    // バースト終了：これを下回った状態が続いたら
     burstOffMs:120,
@@ -196,6 +199,7 @@ function createDetector(opt){
     poseMinSep:35, poseOn:0.72, poseOff:0.35, poseHoldMs:250, poseMaxRot:120, poseAfterBurstMs:800, poseEvidMs:4000, poseEvidRatio:0.5,
     autoPose:true, autoMinRatio:1.3, autoWinMs:2000, autoStillMs:300, autoMaxRot:40, autoMaxAcc:4, // 姿勢の自動学習 // 姿勢による補助判定  // バースト中でも、この割合×th 動いたら即判定
   },opt||{});
+  const DR=()=>o.strictDown?1.0:o.downRatio; // 解除に必要な下ろし量の倍率
   const S={state:false,lv:null,lb:[0,0,0],linS:0,stillT:0,lastT:null,age:0,ring:[],
     burst:null,v:0,p:0,moving:false,seg:null,hist:[],rise:0,fall:0,peak:0,upAt:0,hasLinear:null,gl:null,lastBurst:null};
   const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
@@ -276,7 +280,7 @@ function createDetector(opt){
       // 基準は「前回の判定以降でいちばん低い（高い）位置」。1回のバーストで下げてすぐ上げた場合にも対応
       const k2=b.carried?o.carryRatio:1; // 動き続けている区間はずれが溜まりやすいので判定を厳しく
       if(!S.state && b.p-b.refMin>=o.th*o.earlyRatio*k2 && b.v>0){setState(true,t,ev,b.p-b.refMin,'burst');b.refMin=b.refMax=b.p;b.tRef=t-b.t0;}
-      else if(S.state && b.refMax-b.p>=o.th*o.downRatio*o.earlyRatio*k2 && b.v<0){setState(false,t,ev,b.refMax-b.p,'burst');b.refMin=b.refMax=b.p;b.tRef=t-b.t0;}
+      else if(S.state && b.refMax-b.p>=o.th*DR()*o.earlyRatio*k2 && b.v<0){setState(false,t,ev,b.refMax-b.p,'burst');b.refMin=b.refMax=b.p;b.tRef=t-b.t0;}
       // 加速度が落ち着いても、まだ速く動いている（等速で上げている途中）なら終わりにしない
       // 時間切れも、速く動いている最中には区切らない（最長 burstHardMs まで延長）
       const tOut=(t-b.t0>o.burstMaxMs && Math.abs(b.v)<o.endSpeed) || t-b.t0>o.burstHardMs;
@@ -289,7 +293,7 @@ function createDetector(opt){
         for(const s of b.buf){p+=(s.v-vEnd*(s.tt/T))*s.dt;if(s.tt>=b.tRef){mn=Math.min(mn,p);mx=Math.max(mx,p);}}
         S.lastBurst={disp:p,raw:b.p,dur:T,vEnd};
         if(!S.state && p-mn>=o.th*k2)setState(true,t,ev,p-mn,'burst-end');
-        else if(S.state && mx-p>=o.th*o.downRatio*k2)setState(false,t,ev,mx-p,'burst-end');
+        else if(S.state && mx-p>=o.th*DR()*k2)setState(false,t,ev,mx-p,'burst-end');
         S.burst=null;S.lastBurstT=t;
         // 時間切れ（動き続けている）の場合は、速度を引き継いで次の区間を続ける
         if(tOut && !stillNow && !(b.offT>=o.burstOffMs && Math.abs(b.v)<o.endSpeed)){
@@ -328,13 +332,13 @@ function createDetector(opt){
         const ok=g.t0-(S.lastBurstT??-1e9)>o.postBurstMs && Math.abs(S.p-g.p0)<o.maxDisp;
         if(!ok){S.p=g.p0;for(const s of g.buf)s.h.p=g.p0;}
         else if(!S.state && S.p-mn>=o.th)setState(true,t,ev,S.p-mn,'slow');
-        else if(S.state && mx-S.p>=o.th*o.downRatio)setState(false,t,ev,mx-S.p,'slow');
+        else if(S.state && !o.strictDown && mx-S.p>=o.th*o.downRatio)setState(false,t,ev,mx-S.p,'slow');
       }
       else if(t-g.t0>o.slowMaxMs){S.moving=false;S.v=0;S.p=g.p0;for(const s of g.buf)s.h.p=g.p0;}
       // 静かな状態から始まった動きは、止まるのを待たずに判定（ずれを見込んで基準を上げる）
       else if(g.clean && t-g.t0<o.slowLiveMs){
         if(!S.state && S.p-g.mn>=o.th*o.slowLiveRatio && S.v>0){setState(true,t,ev,S.p-g.mn,'slow-live');g.mn=g.mx=S.p;}
-        else if(S.state && g.mx-S.p>=o.th*o.downRatio*o.slowLiveRatio && S.v<0){setState(false,t,ev,g.mx-S.p,'slow-live');g.mn=g.mx=S.p;}
+        else if(S.state && !o.strictDown && g.mx-S.p>=o.th*o.downRatio*o.slowLiveRatio && S.v<0){setState(false,t,ev,g.mx-S.p,'slow-live');g.mn=g.mx=S.p;}
       }
     }else{S.hist.push({t,p:S.p});}
     while(S.hist.length&&t-S.hist[0].t>o.slowWin)S.hist.shift();
@@ -364,7 +368,7 @@ function createDetector(opt){
           let mn=S.p,mx=S.p;for(const h of S.hist){if(t-h.t<=o.poseEvidMs){mn=Math.min(mn,h.p);mx=Math.max(mx,h.p);}}
           const need=o.th*o.poseEvidRatio;
           if(lv===1&&!S.state&&S.p-mn>=need)setState(true,t,ev,S.p-mn,'pose');
-          else if(lv===0&&S.state&&mx-S.p>=need)setState(false,t,ev,mx-S.p,'pose');
+          else if(lv===0&&S.state&&!o.strictDown&&mx-S.p>=need)setState(false,t,ev,mx-S.p,'pose');
         }
       }} else if(lv===P.level)P.cand=null;
     }
@@ -404,13 +408,13 @@ let link=null;
 
 const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const saved=store.get('kyoshu2-set');
-if(saved){ if(saved.th)$('th').value=saved.th; if(saved.snd===false)$('snd').checked=false; if(saved.vib===false)$('vib').checked=false; }
+if(saved){ if(saved.th)$('th').value=saved.th; if(saved.snd===false)$('snd').checked=false; if(saved.vib===false)$('vib').checked=false; if(saved.strict===false)$('strict').checked=false; }
 function updSettings(){
-  const cm=+$('th').value; det.o.th=cm/100; $('thOut').textContent=cm+' cm';
-  store.set('kyoshu2-set',{th:cm,snd:$('snd').checked,vib:$('vib').checked});
+  const cm=+$('th').value; det.o.th=cm/100; $('thOut').textContent=cm+' cm'; det.o.strictDown=$('strict').checked;
+  store.set('kyoshu2-set',{th:cm,snd:$('snd').checked,vib:$('vib').checked,strict:$('strict').checked});
 }
 function sndUI(){const on=$('snd').checked,b=$('sndBtn');b.textContent=on?'音あり':'消音';b.classList.toggle('off',!on);b.setAttribute('aria-pressed',on);}
-$('th').oninput=updSettings;$('snd').onchange=()=>{updSettings();sndUI()};$('vib').onchange=updSettings;updSettings();sndUI();
+$('th').oninput=updSettings;$('strict').onchange=updSettings;$('snd').onchange=()=>{updSettings();sndUI()};$('vib').onchange=updSettings;updSettings();sndUI();
 $('sndBtn').onclick=()=>{$('snd').checked=!$('snd').checked;updSettings();sndUI();if($('snd').checked){initAudio();beep('ok');}toast($('snd').checked?'音を鳴らします':'消音にしました');};
 
 let toastT=0;
@@ -512,10 +516,10 @@ function frame(now){
   const raw=D.state?D.fall:D.rise;
   if(D.state!==meterState){meterState=D.state;meterVal=0;}
   meterVal=Math.max(raw,meterVal*Math.exp(-(now-(meterT||now))/600));meterT=now;
-  const full=det.o.th*(D.state?det.o.downRatio:1)*1.6;
+  const dr=det.o.strictDown?1:det.o.downRatio;const full=det.o.th*(D.state?dr:1)*1.6;
   $('fill').style.width=Math.max(0,Math.min(100,meterVal/full*100))+'%';
   $('mk').style.left=(100/1.6)+'%';
-  $('dbg').textContent=`センサー ${hz}Hz\n動き ${D.burst?'勢いあり':(D.moving?'ゆっくり':'なし')}   上下の速さ ${(D.burst?D.burst.v:D.v).toFixed(2)} m/s\n${D.state?'下ろし量':'持ち上げ量'} ${Math.round(meterVal*100)} cm（しきい値 ${Math.round(det.o.th*(D.state?det.o.downRatio:1)*100)} cm）\n加速度（平滑後） ${D.linS.toFixed(2)} m/s²\n重力抜き加速度 ${D.hasLinear?'あり':'なし'}`;
+  $('dbg').textContent=`センサー ${hz}Hz\n動き ${D.burst?'勢いあり':(D.moving?'ゆっくり':'なし')}   上下の速さ ${(D.burst?D.burst.v:D.v).toFixed(2)} m/s\n${D.state?'下ろし量':'持ち上げ量'} ${Math.round(meterVal*100)} cm（しきい値 ${Math.round(det.o.th*(D.state?dr:1)*100)} cm）\n加速度（平滑後） ${D.linS.toFixed(2)} m/s²\n重力抜き加速度 ${D.hasLinear?'あり':'なし'}`;
 }
 requestAnimationFrame(frame);
 
