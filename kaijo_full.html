@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>挙手センサー 会場（全員スマホ）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#0e0f15; --panel:#191b25; --panel2:#222534; --line:#2c2f3d; --ink:#eceef6; --mute:#8d92a8;
+  --up:#ffcf33; --upInk:#1a1400; --down:#2e3346; --ok:#5fd39a; --okInk:#06231a; --warn:#ff9a3d; --bad:#ff6a6a;
+  --disp:"Dela Gothic One","Hiragino Sans","Noto Sans JP",sans-serif;
+  --body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink)}
+body{font-family:var(--body);font-size:15px;line-height:1.5;display:flex;flex-direction:column;padding:12px 16px;box-sizing:border-box;gap:12px}
+header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+header h1{font-family:var(--disp);font-weight:400;font-size:18px;margin:0 8px 0 0;letter-spacing:.03em}
+.sp{flex:1}
+button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:8px 14px;background:var(--panel2);color:var(--ink);cursor:pointer}
+button:focus-visible{outline:2px solid var(--up);outline-offset:2px}
+button.primary{background:var(--up);color:var(--upInk)}
+button.go{background:var(--ok);color:var(--okInk);font-size:18px;padding:12px 22px}
+.pill{font-size:12px;color:var(--mute);display:inline-flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mute)} .dot.on{background:var(--ok)} .dot.bad{background:var(--bad)}
+kbd{font-family:var(--mono);font-size:11px;background:#0006;border:1px solid var(--line);border-radius:5px;padding:0 5px}
+
+main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,1fr);gap:14px}
+@media (max-width:900px){main{grid-template-columns:1fr;grid-auto-rows:auto} body{overflow:auto;height:auto}}
+.col{display:flex;flex-direction:column;gap:12px;min-height:0}
+.box{background:var(--panel);border-radius:16px;padding:14px 18px;position:relative}
+.box h2{margin:0 0 8px;font-size:12px;color:var(--mute);letter-spacing:.08em;font-weight:700}
+
+/* 回答中 */
+.now{display:flex;align-items:center;gap:18px;min-height:96px}
+.now .lbl{font-size:13px;color:var(--mute)}
+.now .who{font-family:var(--disp);font-size:clamp(36px,5vw,64px);line-height:1}
+.now .who small{font-size:.45em;color:var(--mute);margin-left:10px}
+.now.empty .who{color:var(--mute);font-size:24px}
+.now .ctl{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* 挙手順 */
+.queue{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.qi{display:flex;align-items:center;gap:14px;background:var(--down);border-radius:12px;padding:10px 14px;cursor:pointer;border:2px solid transparent}
+.qi:hover{border-color:var(--ink)}
+.qi .rank{font-family:var(--disp);font-size:30px;width:1.6em;color:var(--up)}
+.qi .name{font-family:var(--disp);font-size:26px;flex:1}
+.qi .dt{font-family:var(--mono);font-size:12px;color:var(--mute)}
+.qi.tie .dt{color:var(--warn);font-weight:700}
+.qi .tot{font-size:12px;color:var(--mute)}
+.queue .none{color:var(--mute);padding:20px;text-align:center}
+
+/* 審査員 */
+.score{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.score .n{font-family:var(--disp);font-size:clamp(44px,6vw,88px);line-height:1}
+.score .u{color:var(--mute)}
+.score .pts{font-family:var(--disp);font-size:clamp(26px,3.6vw,48px);color:var(--up)}
+.score .last{width:100%;font-size:13px;color:var(--mute);min-height:1.4em}
+.judges{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px}
+.j{background:var(--down);border-radius:12px;padding:8px 10px;cursor:pointer;user-select:none;-webkit-user-select:none;border:2px solid transparent;display:flex;flex-direction:column;gap:2px}
+.j.up{background:var(--up);color:var(--upInk)}
+.j.off{background:var(--panel);color:var(--mute)}
+.j.manual{border-color:var(--ink);border-style:dashed}
+.j .no{font-family:var(--disp);font-size:18px}
+.j .st{font-size:11px;font-weight:700}
+
+/* 得点表 */
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{padding:4px 6px;text-align:left;border-bottom:1px solid var(--line)}
+th{color:var(--mute);font-weight:700;font-size:11px}
+td.num,th.num{text-align:right;font-family:var(--mono)}
+.tbl{max-height:30vh;overflow:auto}
+
+.sheet{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:10;padding:16px}
+[hidden]{display:none!important}
+.panel{background:var(--bg);border:1px solid var(--line);border-radius:18px;max-width:640px;width:100%;max-height:90vh;overflow:auto;padding:18px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px}
+.panel header{justify-content:space-between}
+.panel h2{margin:0;font-size:17px}
+section{background:var(--panel);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+section h3{margin:0;font-size:12px;color:var(--mute);letter-spacing:.08em}
+.note{font-size:12px;color:var(--mute);margin:0}
+label.set{display:flex;justify-content:space-between;gap:10px;font-size:13px;align-items:center}
+select,input[type=number]{font:inherit;background:var(--panel2);color:var(--ink);border:0;border-radius:8px;padding:6px 8px}
+textarea{width:100%;box-sizing:border-box;min-height:120px;background:var(--panel2);color:var(--ink);border:0;border-radius:8px;font:inherit;font-size:13px;padding:8px}
+.qrs{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:600px){.qrs{grid-template-columns:1fr}}
+.qrs .one{background:var(--panel);border-radius:14px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.qrs .one h4{margin:0;font-family:var(--disp);font-weight:400;font-size:18px}
+.qrs .qr{background:#fff;padding:8px;border-radius:10px;line-height:0}
+.qrs .qr svg{width:200px;height:200px}
+.code{font-family:var(--mono);font-size:11px;word-break:break-all;color:var(--mute)}
+.toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#000d;color:#fff;padding:9px 16px;border-radius:999px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20;white-space:nowrap}
+.toast.show{opacity:1} .toast.warn{background:#5a1f12f0}
+
+/* 参加者 */
+.people{display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow:auto}
+.pe{display:flex;align-items:center;gap:10px;background:var(--panel2);border-radius:10px;padding:6px 10px}
+.pe .nm{flex:1;font-weight:700}
+.pe .nm small{color:var(--mute);font-weight:400;margin-left:6px}
+.pe.offl{opacity:.5}
+.pe .seg button{padding:4px 10px;font-size:12px}
+.pe .seg button[aria-pressed="true"]{background:var(--up);color:var(--upInk)}
+.pe .x{padding:4px 8px;font-size:12px;color:var(--mute)}
+.tabs{display:flex;gap:6px;margin-bottom:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>挙手センサー 会場</h1>
+  <span class="pill">回答者 <b id="npTxt">0</b></span>
+  <span class="pill">審査員 <b id="njTxt">0</b></span>
+  <span class="pill">待機 <b id="nwTxt">0</b></span>
+  <span class="sp"></span>
+  <span class="pill"><span class="dot" id="netDot"></span><span id="netTxt">接続の準備中</span></span>
+  <button id="peopleBtn">参加者・役割</button>
+  <button id="qrBtn">スマホをつなぐ</button>
+  <button id="setBtn">設定</button>
+</header>
+
+<main>
+  <div class="col">
+    <div class="box now empty" id="nowBox">
+      <div>
+        <div class="lbl">回答中</div>
+        <div class="who" id="nowWho">まだ指名していません</div>
+      </div>
+      <div class="ctl">
+        <button class="go" id="nextBtn">次へ <kbd>Space</kbd></button>
+        <button id="dropBtn" title="得点をつけずに回答者を外す">指名を外す <kbd>Esc</kbd></button>
+      </div>
+    </div>
+    <div class="box" style="flex:1;min-height:0;display:flex;flex-direction:column">
+      <h2>挙手の順番（上げた順）</h2>
+      <div class="queue" id="queue"><div class="none">手が上がると、ここに上げた順で並びます</div></div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="box">
+      <h2>審査員の挙手（この回答に対して）</h2>
+      <div class="score"><span class="n" id="voteN">0</span><span class="u">本</span><span class="pts" id="votePts">0点</span><span class="last" id="voteNote"></span></div>
+      <div class="judges" id="judges"></div>
+    </div>
+    <div class="box" style="flex:1;min-height:0;display:flex;flex-direction:column">
+      <h2>得点表</h2>
+      <div class="tbl" style="flex:1"><table><thead><tr><th>#</th><th>回答者</th><th class="num">本</th><th class="num">点</th><th>時刻</th></tr></thead><tbody id="logBody"></tbody></table></div>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button id="undoBtn">直前の得点を取り消す <kbd>Backspace</kbd></button>
+        <button id="copyBtn">得点表をコピー（Excel用）</button>
+        <button id="csvBtn">CSVを保存</button>
+        <button id="totalBtn">累計をコピー</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast" role="status"></div>
+
+<div class="sheet" id="qrSheet" hidden>
+  <div class="panel" role="dialog" aria-label="スマホをつなぐ">
+    <header><h2>スマホをつなぐ</h2><button id="qrClose">閉じる</button></header>
+    <p class="note">全員このQRを読み取り、開いたページで画面をタップして開始、名前を入れてもらいます。役割（回答者・審査員）は「参加者・役割」で運営が決めます。スマホは手に持ったまま手を上げてください。</p>
+    <div class="qrs" style="grid-template-columns:1fr">
+      <div class="one"><div class="qr" id="qrP"></div><div class="code" id="urlP">準備中…</div><button data-copy="urlP">URLをコピー</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="peopleSheet" hidden>
+  <div class="panel" role="dialog" aria-label="参加者と役割">
+    <header><h2>参加者と役割</h2><button id="peopleClose">閉じる</button></header>
+    <p class="note">つながったスマホが名前つきで並びます。役割はいつでも切り替えられます（本人のスマホにも表示されます）。番号は役割ごとに自動で振られます。</p>
+    <div class="tabs"><button id="allP">全員を回答者に</button><button id="allW">全員を待機に</button></div>
+    <div class="people" id="people"><div class="none">まだ誰もつながっていません</div></div>
+  </div>
+</div>
+
+<div class="sheet" id="setSheet" hidden>
+  <div class="panel" role="dialog" aria-label="設定">
+    <header><h2>設定</h2><button id="setClose">閉じる</button></header>
+    <section>
+      <h3>点数</h3>
+      <label class="set">計算<select id="formula"><option value="sq">本数の2乗（超加点）</option><option value="lin">本数そのまま</option></select></label>
+      <label class="set">同時とみなす差（ミリ秒）<input type="number" id="tieMs" min="0" max="500" step="10" value="80"></label>
+      <p class="note">挙手順でこの差より近い2人は「同時」と表示します（スマホの通信のゆらぎぶん）。</p>
+    </section>
+    <section>
+      <h3>指名のしかた</h3>
+      <label class="set"><span>先頭の人が手を下ろしたら自動で指名する</span><input type="checkbox" id="auto" checked></label>
+      <p class="note">MCが口で指名→本人が手を下ろす、で次の回答が始まります。同時に、前の回答への審査員の本数が確定します。Spaceでの手動指名もそのまま使えます。間違って下ろした人は Esc で外せます。</p>
+    </section>
+    <section>
+      <h3>操作</h3>
+      <p class="note"><kbd>Space</kbd> 次へ：いまの回答に審査員の本数を確定して記録し、挙手順の先頭を指名します。<br><kbd>Esc</kbd> 指名を外す（記録しない）　<kbd>Backspace</kbd> 直前の記録を取り消す<br>挙手順の名前をクリックすると、順番に関係なくその人を指名できます。審査員のカードをクリックすると挙手の有無を手動で直せます。</p>
+      <button id="resetAll">得点表をすべて消す</button>
+      <button id="forgetAll">参加者の一覧を消す（切れている人）</button>
+    </section>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.js"></script>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const now=()=>performance.now();
+const TEST=new URLSearchParams(location.search).has('test');
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ---------- 設定
+const cfg=Object.assign({formula:'sq',tieMs:80,auto:true},store.get('kyoshu-kaijo2')||{});
+function save(){store.set('kyoshu-kaijo2',cfg)}
+$('formula').value=cfg.formula;$('tieMs').value=cfg.tieMs;$('auto').checked=cfg.auto;
+$('auto').onchange=()=>{cfg.auto=$('auto').checked;save();render();};
+$('formula').onchange=()=>{cfg.formula=$('formula').value;save();render();};
+$('tieMs').onchange=()=>{cfg.tieMs=+$('tieMs').value||0;save();render();};
+const points=n=>cfg.formula==='sq'?n*n:n;
+for(const [b,sh] of [['setBtn','setSheet'],['qrBtn','qrSheet'],['peopleBtn','peopleSheet']])$(b).onclick=()=>{$(sh).hidden=false;renderPeople();};
+for(const [b,sh] of [['setClose','setSheet'],['qrClose','qrSheet'],['peopleClose','peopleSheet']])$(b).onclick=()=>{$(sh).hidden=true};
+for(const sh of ['setSheet','qrSheet','peopleSheet'])$(sh).addEventListener('click',e=>{if(e.target===$(sh))$(sh).hidden=true});
+let toastT=0;function toast(t,warn){const el=$('toast');el.textContent=t;el.classList.toggle('warn',!!warn);el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2400);}
+
+// ---------- 参加者（端末ごと）
+// dev: {id,name,conn,role:'p'|'j'|null,seat,up,upAt,hold,votedAt,manual,off,rtt,order}
+const devs=new Map();
+const saved=store.get('kyoshu-kaijo2-devs')||{};   // id -> {name,role,order}
+let orderSeq=0;
+function dev(id){let d=devs.get(id);if(!d){const sv=saved[id]||{};d={id,name:sv.name||'',conn:null,role:sv.role||null,seat:0,up:false,upAt:0,hold:false,votedAt:0,manual:null,off:null,rtt:1e9,order:sv.order??(orderSeq++)};orderSeq=Math.max(orderSeq,d.order+1);devs.set(id,d);}return d;}
+for(const id of Object.keys(saved))dev(id);
+function persist(){const o={};for(const d of devs.values())o[d.id]={name:d.name,role:d.role,order:d.order};store.set('kyoshu-kaijo2-devs',o);}
+const byRole=r=>[...devs.values()].filter(d=>d.role===r).sort((a,b)=>a.order-b.order);
+function reseat(){ // 役割ごとに番号を振り直し、変わった端末に知らせる
+  for(const r of ['p','j'])byRole(r).forEach((d,i)=>{if(d.seat!==i+1){d.seat=i+1;sendAssign(d);}});
+  for(const d of devs.values())if(!d.role&&d.seat){d.seat=0;sendAssign(d);}
+  persist();
+}
+function sendAssign(d){send(d,{type:'assign',role:d.role,seat:d.seat,name:d.name});}
+function setRole(d,r){
+  if(d.role===r)return;
+  if(current===d)drop();
+  d.role=r;d.hold=d.up;d.votedAt=0;d.manual=null;d.seat=0;
+  if(r){d.order=orderSeq++;}
+  reseat();sendAssign(d);renderPeople();render();
+}
+const P=()=>byRole('p'),J=()=>byRole('j');
+function renderPeople(){
+  const box=$('people');const all=[...devs.values()].sort((a,b)=>(a.conn?0:1)-(b.conn?0:1)||a.order-b.order);
+  box.innerHTML=all.length?'':'<div class="none">まだ誰もつながっていません</div>';
+  for(const d of all){
+    const el=document.createElement('div');el.className='pe'+(d.conn?'':' offl');
+    el.innerHTML=`<span class="nm">${esc(d.name||'（名前なし）')}<small>${d.conn?'':'切断中 '}${d.role?`${d.role==='p'?'回答者':'審査員'} ${d.seat}番`:''}</small></span>
+      <span class="seg"><button data-r="p" aria-pressed="${d.role==='p'}">回答者</button><button data-r="j" aria-pressed="${d.role==='j'}">審査員</button><button data-r="" aria-pressed="${!d.role}">待機</button></span>
+      <button class="x" title="一覧から消す">✕</button>`;
+    el.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>setRole(d,b.dataset.r||null));
+    el.querySelector('.x').onclick=()=>{if(d.conn){toast('つながっている人は消せません（待機にしてください）',true);return}devs.delete(d.id);reseat();renderPeople();render();};
+    box.appendChild(el);
+  }
+}
+$('allP').onclick=()=>{for(const d of devs.values())if(d.conn&&!d.role)setRole(d,'p');};
+$('allW').onclick=()=>{for(const d of devs.values())setRole(d,null);};
+$('forgetAll').onclick=()=>{for(const d of [...devs.values()])if(!d.conn)devs.delete(d.id);reseat();renderPeople();render();toast('切れている人を一覧から消しました');};
+
+let current=null,pickedAt=0;   // 回答中の端末
+const log=[];                    // {n,id,name,votes,pts,time}
+
+// ---------- 票：指名したあとに上げた手だけ（前の回答で上げたままの手は数えない）
+function judgeVoted(j){if(j.manual!=null)return j.manual;if(!j.conn)return null;return current!=null&&j.votedAt>pickedAt;}
+function countVotes(){let n=0,unk=0;for(const j of J()){const v=judgeVoted(j);if(v==null)unk++;else if(v)n++;}return {n,unk};}
+function toggleJudge(j){const cur=judgeVoted(j);j.manual=!cur;render();toast(`審査員${j.seat}（${j.name}）：手動で「${j.manual?'挙手':'下'}」にしました`);}
+
+// ---------- 挙手順（回答し終えた人は、いったん手を下ろすまで列に戻さない）
+function queue(){return P().filter(d=>d.up&&d!==current&&!d.hold).map(d=>({d,t:d.upAt})).sort((a,b)=>a.t-b.t);}
+function pick(d){
+  if(current)closeCurrent();
+  current=d;pickedAt=now();
+  for(const j of J()){j.manual=null;j.votedAt=0;}
+  send(d,{type:'picked'});render();
+}
+function closeCurrent(){
+  if(!current)return;
+  const {n,unk}=countVotes(),pts=points(n);
+  log.push({n:log.length+1,id:current.id,name:current.name,votes:n,pts,unk,time:new Date().toLocaleTimeString('ja-JP')});
+  send(current,{type:'done'});current.hold=current.up;
+  toast(`${current.name}：${n}本 ${pts}点${unk?`（判定できない審査員 ${unk}）`:''}`);
+  current=null;pickedAt=0;
+}
+function next(){closeCurrent();const q=queue();if(q.length)pick(q[0].d);else render();}
+function drop(){if(!current)return;send(current,{type:'done'});current.hold=current.up;toast(`${current.name}の指名を外しました（記録なし）`);current=null;pickedAt=0;render();}
+function undo(){const l=log.pop();if(!l){toast('取り消す記録がありません');return}toast(`取り消し：${l.name} ${l.votes}本`);render();}
+$('nextBtn').onclick=next;$('dropBtn').onclick=drop;$('undoBtn').onclick=undo;
+document.addEventListener('keydown',e=>{
+  if(e.target.matches('input,textarea,select'))return;
+  const open=['setSheet','qrSheet','peopleSheet'].some(id=>!$(id).hidden);
+  if(e.code==='Space'||e.key==='Enter'){if(open)return;e.preventDefault();next();}
+  else if(e.key==='Escape'){if(open){for(const id of ['setSheet','qrSheet','peopleSheet'])$(id).hidden=true;return}drop();}
+  else if(e.key==='Backspace'){if(open)return;e.preventDefault();undo();}
+});
+$('resetAll').onclick=()=>{if(confirm('得点表をすべて消しますか？')){log.length=0;render();}};
+
+// ---------- 表示
+function render(){
+  const t=now();
+  $('nowBox').classList.toggle('empty',!current);
+  $('nowWho').innerHTML=!current?(cfg.auto?'先頭の人が手を下ろすと始まります':'まだ指名していません'):`${esc(current.name)}<small>${current.up?'手を上げたまま':''}</small>`;
+  const q=queue(),box=$('queue');box.innerHTML='';
+  if(!q.length)box.innerHTML='<div class="none">手が上がると、ここに上げた順で並びます</div>';
+  q.forEach((x,k)=>{
+    const el=document.createElement('div');el.className='qi';
+    const dt=k?x.t-q[k-1].t:0,tie=k&&dt<cfg.tieMs;if(tie)el.classList.add('tie');
+    const tot=log.filter(l=>l.id===x.d.id).reduce((s,l)=>s+l.pts,0);
+    el.innerHTML=`<span class="rank">${k+1}</span><span class="name">${esc(x.d.name)}</span><span class="tot">累計 ${tot}点</span><span class="dt">${k?(tie?'同時':`+${(dt/1000).toFixed(2)}s`):`${((t-x.t)/1000).toFixed(0)}s前`}</span>`;
+    el.title='クリックで指名';el.onclick=()=>pick(x.d);box.appendChild(el);
+  });
+  const {n,unk}=countVotes();$('voteN').textContent=n;$('votePts').textContent=points(n)+'点';
+  const js=J();
+  $('voteNote').textContent=!js.length?'審査員がいません（参加者・役割で指定）':(!current?'指名すると、その回答への挙手を数え始めます':(unk?`つながっていない審査員 ${unk}人`:''));
+  const jb=$('judges');jb.innerHTML='';
+  for(const j of js){const v=judgeVoted(j);const el=document.createElement('div');el.className='j'+(v?' up':'')+(v==null?' off':'')+(j.manual!=null?' manual':'');
+    el.innerHTML=`<span class="no">${j.seat} <span style="font-family:var(--body);font-size:12px">${esc(j.name)}</span></span><span class="st">${j.manual!=null?'手動':(v==null?'未接続':(v?(j.up?'挙手中':'上げた'):(j.up?'上げたまま':'下')))}</span>`;
+    el.onclick=()=>toggleJudge(j);jb.appendChild(el);}
+  const tb=$('logBody');tb.innerHTML='';
+  for(const l of [...log].reverse()){const tr=document.createElement('tr');tr.innerHTML=`<td>${l.n}</td><td>${esc(l.name)}</td><td class="num">${l.votes}</td><td class="num">${l.pts}</td><td>${l.time}</td>`;tb.appendChild(tr);}
+  const all=[...devs.values()].filter(d=>d.conn);
+  $('npTxt').textContent=all.filter(d=>d.role==='p').length;$('njTxt').textContent=all.filter(d=>d.role==='j').length;$('nwTxt').textContent=all.filter(d=>!d.role).length;
+  q.forEach((x,k)=>{if(x.d.qpos!==k+1){x.d.qpos=k+1;send(x.d,{type:'queue',pos:k+1});}});
+  for(const d of devs.values())if((!d.up||d.role!=='p')&&d.qpos){d.qpos=0;send(d,{type:'queue',pos:0});}
+}
+setInterval(render,1000);
+
+// ---------- 得点表の書き出し
+function table(){return ['番号\t回答者\t本数\t点数\t時刻',...log.map(l=>`${l.n}\t${l.name}\t${l.votes}\t${l.pts}\t${l.time}`)].join('\n');}
+function totals(){const m=new Map();for(const l of log){const o=m.get(l.id)||{name:l.name,n:0,pts:0,ans:0};o.n+=l.votes;o.pts+=l.pts;o.ans++;m.set(l.id,o);}return ['回答者\t回答数\t本数合計\t点数合計',...[...m.values()].sort((a,b)=>b.pts-a.pts).map(o=>`${o.name}\t${o.ans}\t${o.n}\t${o.pts}`)].join('\n');}
+const copy=(txt,msg)=>{try{navigator.clipboard.writeText(txt).then(()=>toast(msg),()=>toast('コピーできませんでした',true))}catch(e){toast('コピーできませんでした',true)}};
+$('copyBtn').onclick=()=>copy(table(),'得点表をコピーしました（Excelに貼れます）');
+$('totalBtn').onclick=()=>copy(totals(),'累計をコピーしました');
+$('csvBtn').onclick=()=>{const csv='﻿'+table().replace(/\t/g,',');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=`kyoshu_${new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')}.csv`;a.click();};
+
+// ---------- スマホとの接続
+let peer=null,peerId=store.get('kyoshu-kaijo-id');
+function send(x,m){if(x&&x.conn)try{x.conn.send(m)}catch(e){}}
+function joinURL(id){const u=new URL('index.html',location.href);u.search=`?pc=${encodeURIComponent(id)}`;return u.href;}
+function showQR(id){const url=joinURL(id);$('urlP').textContent=url;try{const c=qrcode(0,'M');c.addData(url);c.make();$('qrP').innerHTML=c.createSvgTag({cellSize:5,margin:2,scalable:true});}catch(e){$('qrP').textContent='QRを作れませんでした'}}
+document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=()=>copy($(b.dataset.copy).textContent,'URLをコピーしました'));
+function startPeer(retry){
+  if(typeof Peer==='undefined'){$('netTxt').textContent='接続の部品を読み込めませんでした';$('netDot').className='dot bad';return}
+  if(!peerId||retry){peerId='kaijo-'+Math.random().toString(36).slice(2,8);store.set('kyoshu-kaijo-id',peerId);}
+  peer=new Peer(peerId);
+  peer.on('open',id=>{showQR(id);$('netTxt').textContent='接続OK';$('netDot').className='dot on';});
+  peer.on('error',e=>{if(e.type==='unavailable-id'){peer.destroy();setTimeout(()=>startPeer(true),300);return}$('netDot').className='dot bad';toast('スマホとの接続でエラー：'+e.type,true);});
+  peer.on('disconnected',()=>{setTimeout(()=>{try{peer.reconnect()}catch(e){}},1500)});
+  peer.on('connection',conn=>{
+    let x=null,pingT=null;
+    function ping(){if(!conn.open)return;try{conn.send({type:'ping',t:now()})}catch(e){}}
+    conn.on('data',m=>{
+      if(!m||typeof m!=='object')return;
+      if(m.type==='pong'){const t1=now(),rtt=t1-m.t;if(x&&rtt<x.rtt){x.rtt=rtt;x.off=m.pt-(m.t+rtt/2);}return;}
+      if(!m.id)return;
+      if(!x||x.id!==m.id){
+        if(x&&x.conn===conn){x.conn=null;x.up=false;}
+        x=dev(m.id);
+        if(x.conn&&x.conn!==conn)try{x.conn.close()}catch(e){}
+        const fresh=!x.name;x.conn=conn;x.off=null;x.rtt=1e9;x.up=false;x.name=m.name||x.name;
+        if(x.role&&!x.seat)reseat();
+        try{conn.send({type:'hello',seat:x.seat,n:0})}catch(e){}
+        sendAssign(x);persist();
+        toast(`${x.name} がつながりました${x.role?`（${x.role==='p'?'回答者':'審査員'} ${x.seat}番）`:'（役割を決めてください）'}`,!x.role);
+        clearInterval(pingT);ping();pingT=setInterval(ping,700);setTimeout(()=>{clearInterval(pingT);pingT=setInterval(ping,15000)},6000);
+        renderPeople();
+      }
+      if(m.name&&m.name!==x.name){x.name=m.name;persist();renderPeople();}
+      if(typeof m.up==='boolean'){
+        const t=now();
+        if(m.up&&!x.up){let at=t;if(m.et!=null&&x.off!=null){const c=m.et-x.off;if(c<=t+50&&c>t-5000)at=c;}x.upAt=at;x.votedAt=at;}
+        if(!m.up)x.hold=false;
+        // 自動指名：列の先頭が手を下ろした＝指名されて回答に入った
+        const head=cfg.auto&&!m.up&&x.up&&x.role==='p'&&(queue()[0]||{}).d===x;
+        x.up=m.up;if(head)pick(x);else render();
+      }
+    });
+    conn.on('close',()=>{clearInterval(pingT);if(x&&x.conn===conn){x.conn=null;x.up=false;toast(`${x.name} のスマホが切れました`,true);renderPeople();render();}});
+  });
+}
+reseat();render();startPeer(false);
+
+if(TEST)window.__kaijo={devs,cfg,log,pick,next,drop,undo,queue,countVotes,setRole,P,J,get current(){return current},
+  fake(id,name,role,up,et){const x=dev(id);x.conn=x.conn||{open:true,send(){},close(){}};if(!x.name)x.name=name;if(role!==undefined&&x.role!==role)setRole(x,role);const t=now();if(up&&!x.up){x.upAt=et!=null?et:t;x.votedAt=x.upAt;}if(!up)x.hold=false;const head=cfg.auto&&!up&&x.up&&x.role==='p'&&(queue()[0]||{}).d===x;x.up=up;if(head)pick(x);else render();return x;}};
+})();
+</script>
+</body>
+</html>

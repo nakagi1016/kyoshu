@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>挙手センサー 会場</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#0e0f15; --panel:#191b25; --panel2:#222534; --line:#2c2f3d; --ink:#eceef6; --mute:#8d92a8;
+  --up:#ffcf33; --upInk:#1a1400; --down:#2e3346; --ok:#5fd39a; --warn:#ff9a3d; --bad:#ff6a6a; --phone:#7fb2ff;
+  --disp:"Dela Gothic One","Hiragino Sans","Noto Sans JP",sans-serif;
+  --body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink)}
+body{font-family:var(--body);font-size:15px;line-height:1.5;display:flex;flex-direction:column;padding:12px 16px;box-sizing:border-box;gap:12px}
+header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+header h1{font-family:var(--disp);font-weight:400;font-size:18px;margin:0 8px 0 0;letter-spacing:.03em}
+.sp{flex:1}
+button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:8px 14px;background:var(--panel2);color:var(--ink);cursor:pointer}
+button:focus-visible{outline:2px solid var(--up);outline-offset:2px}
+button.primary{background:var(--up);color:var(--upInk)}
+.seg{display:inline-flex;background:var(--panel2);border-radius:10px;padding:3px}
+.seg button{background:transparent;padding:6px 12px;border-radius:8px;color:var(--mute)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.pill{font-size:12px;color:var(--mute);display:inline-flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mute)} .dot.on{background:var(--ok)} .dot.bad{background:var(--bad)}
+
+main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.45fr) minmax(300px,1fr);gap:14px}
+@media (max-width:900px){main{grid-template-columns:1fr;grid-auto-rows:minmax(240px,auto)} body{overflow:auto;height:auto}}
+.cam{position:relative;background:#000;border-radius:16px;overflow:hidden;min-height:0;display:flex;align-items:center;justify-content:center}
+.cam canvas{max-width:100%;max-height:100%;display:block;touch-action:none}
+.cam .over{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#000c;text-align:center;padding:20px}
+.cam .over p{margin:0;color:var(--mute);font-size:14px;max-width:46ch}
+.cam .tip{position:absolute;left:12px;bottom:10px;font-size:12px;color:#fffa;background:#0008;padding:4px 10px;border-radius:999px;pointer-events:none}
+
+.side{display:flex;flex-direction:column;gap:12px;min-height:0}
+.total{background:var(--panel);border-radius:16px;padding:14px 18px;display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;position:relative}
+.total .n{font-family:var(--disp);font-size:clamp(48px,7vw,96px);line-height:1}
+.total .u{font-size:16px;color:var(--mute)}
+.total .pts{font-family:var(--disp);font-size:clamp(28px,4vw,52px);color:var(--up)}
+.total .note{width:100%;font-size:13px;color:var(--warn);min-height:1.4em}
+.total.frozen{box-shadow:inset 0 0 0 3px var(--up)}
+.total .lock{position:absolute;top:12px;right:14px;font-size:12px;font-weight:700;color:var(--upInk);background:var(--up);padding:2px 10px;border-radius:999px}
+.seats{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;overflow:auto;min-height:0;align-content:start}
+.seat{background:var(--down);border-radius:14px;padding:10px 12px 12px;cursor:pointer;user-select:none;-webkit-user-select:none;display:flex;flex-direction:column;gap:6px;position:relative;border:2px solid transparent;transition:background .1s}
+.seat.up{background:var(--up);color:var(--upInk)}
+.seat.none{background:var(--panel);color:var(--mute)}
+.seat.conflict{border-color:var(--warn);animation:blink 1s steps(2) infinite}
+.seat.manual{border-color:var(--ink);border-style:dashed}
+@keyframes blink{50%{border-color:transparent}}
+@media (prefers-reduced-motion:reduce){.seat.conflict{animation:none}}
+.seat .hd{display:flex;justify-content:space-between;align-items:baseline}
+.seat .no{font-family:var(--disp);font-size:20px}
+.seat .v{font-family:var(--disp);font-size:34px;line-height:1}
+.seat .src{display:flex;gap:6px;font-size:11px;flex-wrap:wrap}
+.seat .src span{padding:1px 7px;border-radius:999px;background:#0003}
+.seat.up .src span{background:#0001}
+.seat .tag{font-size:11px;font-weight:700;min-height:1.3em}
+.seat.conflict .tag{color:var(--warn)} .seat.up.conflict .tag{color:#7a3a00}
+
+.sheet{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:10;padding:16px}
+[hidden]{display:none!important}
+.panel{background:var(--bg);border:1px solid var(--line);border-radius:18px;max-width:560px;width:100%;max-height:90vh;overflow:auto;padding:18px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px}
+.panel header{justify-content:space-between}
+.panel h2{margin:0;font-size:17px}
+section{background:var(--panel);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+section h3{margin:0;font-size:12px;color:var(--mute);letter-spacing:.08em}
+.note{font-size:12px;color:var(--mute);margin:0}
+label.set{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:13px;align-items:center}
+label.set input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--up)}
+label.set output{font-family:var(--mono)}
+select{font:inherit;background:var(--panel2);color:var(--ink);border:0;border-radius:8px;padding:6px 8px}
+.qrbox{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.qrbox .qr{background:#fff;padding:10px;border-radius:12px;line-height:0}
+.qrbox .qr img,.qrbox .qr svg{width:220px;height:220px}
+.code{font-family:var(--mono);font-size:13px;word-break:break-all}
+.toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#000d;color:#fff;padding:9px 16px;border-radius:999px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20;white-space:nowrap}
+.toast.show{opacity:1} .toast.warn{background:#5a1f12f0}
+</style>
+</head>
+<body>
+<header>
+  <h1>挙手センサー 会場</h1>
+  <div class="seg" role="group" aria-label="票の数え方">
+    <button id="mode1" aria-pressed="true">片手（1人1票）</button>
+    <button id="mode2" aria-pressed="false">両手（1人2票）</button>
+  </div>
+  <span class="sp"></span>
+  <span class="pill"><span class="dot" id="camDot"></span><span id="camTxt">カメラ停止</span></span>
+  <span class="pill"><span class="dot" id="netDot"></span><span id="netTxt">スマホ接続 0台</span></span>
+  <button id="qrBtn">スマホをつなぐ</button>
+  <button id="setBtn">設定</button>
+</header>
+
+<main>
+  <div class="cam" id="camBox">
+    <canvas id="cv" width="1280" height="720" aria-label="カメラ映像と席の区切り"></canvas>
+    <div class="over" id="camOver">
+      <button class="primary" id="camStart">カメラを開始</button>
+      <p id="camMsg">審査員全員が画面に入り、手を上げても頭の上まで映る位置にカメラを置いてください。最初の起動は読み込みに10秒ほどかかります。</p>
+    </div>
+    <div class="tip" id="camTip" hidden>白い縦線をドラッグすると席の区切りを動かせます</div>
+  </div>
+
+  <div class="side">
+    <div class="total" id="totalBox">
+      <span class="n" id="totN">0</span><span class="u">本</span>
+      <span class="pts" id="totP">0点</span>
+      <span class="note" id="totNote"></span>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="primary" id="freezeBtn">この瞬間で確定</button>
+      <button id="nextBtn">次の判定へ（手動修正を解除）</button>
+    </div>
+    <div class="seats" id="seats"></div>
+  </div>
+</main>
+
+<div class="toast" id="toast" role="status"></div>
+
+<div class="sheet" id="qrSheet" hidden>
+  <div class="panel" role="dialog" aria-label="スマホをつなぐ">
+    <header><h2>スマホをつなぐ</h2><button id="qrClose">閉じる</button></header>
+    <section>
+      <div class="qrbox"><div class="qr" id="qr"></div>
+        <div style="display:flex;flex-direction:column;gap:8px;flex:1;min-width:200px">
+          <p class="note">審査員のスマホでこのQRコードを読み取り、開いたページで画面をタップして開始、自分の席番号を選んでもらいます。</p>
+          <p class="note">QRが読めないときは、このURLを送ってください。</p>
+          <div class="code" id="joinUrl">接続の準備中…</div>
+          <button id="copyUrl">URLをコピー</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="sheet" id="setSheet" hidden>
+  <div class="panel" role="dialog" aria-label="設定">
+    <header><h2>設定</h2><button id="setClose">閉じる</button></header>
+    <section>
+      <h3>席</h3>
+      <label class="set">審査員の人数<select id="nSeats"><option>1</option><option>2</option><option>3</option><option>4</option><option selected>5</option><option>6</option><option>7</option><option>8</option></select></label>
+      <label class="set"><span>席番号を右から振る（カメラが審査員の正面にあるとき）</span><input type="checkbox" id="rtl"></label>
+      <button id="resetZones">席の区切りを均等に戻す</button>
+    </section>
+    <section>
+      <h3>カメラでの判定</h3>
+      <label class="set" for="camTh">手首が肩よりこれだけ上なら挙手（肩幅に対する割合）<output id="camThOut">0.10</output>
+        <input type="range" id="camTh" min="0" max="1.5" step="0.05" value="0.1"></label>
+      <p class="note">標準は0.10（審査の動画約5.7時間で検証：控えめな挙手も976回中975回拾えた値）。顔の前で手を振る・口を押さえるなどで誤って数えるときは少し上げてください。</p>
+      <label class="set">骨格検出の精度<select id="model"><option value="full">高精度（標準）</option><option value="lite">軽量（古いPC向け）</option></select></label>
+      <p class="note">「確定」を押すと、直前1.5秒の間に手が上がった席を数えます。挙手を下ろした直後に押しても数えられます。</p>
+      <label class="set">カメラ<select id="camSel"><option value="">標準のカメラ</option></select></label>
+      <label class="set"><span>映像を左右反転して表示</span><input type="checkbox" id="mirror"></label>
+    </section>
+    <section>
+      <h3>カメラとスマホが食い違ったとき</h3>
+      <label class="set">数え方<select id="policy"><option value="cam">カメラを優先（オレンジ枠で知らせる）</option><option value="phone">スマホを優先（オレンジ枠で知らせる）</option><option value="any">どちらかが上げていれば数える</option></select></label>
+      <p class="note">食い違いが0.7秒以上続いた席はオレンジ枠で点滅します。席のカードをタップすると手動で直せます（もう一度押すたびに切り替わり、最後に自動に戻ります）。</p>
+    </section>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.js"></script>
+<script type="module">
+const $=id=>document.getElementById(id);
+const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const TEST=new URLSearchParams(location.search).has('test');
+
+// ---------- 設定
+const cfg=Object.assign({n:5,rtl:false,camTh:0.1,mirror:false,policy:'cam',mode:1,zones:null,camId:'',model:'full'},store.get('kyoshu-pc')||{});
+if(!(cfg.v>=2)){cfg.camTh=0.1;cfg.model='full';cfg.v=2;} // 動画での検証結果に合わせて標準値を更新
+function save(){store.set('kyoshu-pc',cfg)}
+function evenZones(n){return Array.from({length:n-1},(_,i)=>(i+1)/n)}
+if(!cfg.zones||cfg.zones.length!==cfg.n-1)cfg.zones=evenZones(cfg.n);
+$('nSeats').value=cfg.n;$('rtl').checked=cfg.rtl;$('camTh').value=cfg.camTh;$('camThOut').textContent=(+cfg.camTh).toFixed(2);
+$('mirror').checked=cfg.mirror;$('policy').value=cfg.policy;$('model').value=cfg.model;
+$('model').onchange=()=>{cfg.model=$('model').value;save();toast('次にカメラを開始したときから切り替わります');};
+$('nSeats').onchange=()=>{cfg.n=+$('nSeats').value;cfg.zones=evenZones(cfg.n);save();buildSeats();if(lmMake)ensureLms();};
+$('rtl').onchange=()=>{cfg.rtl=$('rtl').checked;save();};
+$('camTh').oninput=()=>{cfg.camTh=+$('camTh').value;$('camThOut').textContent=cfg.camTh.toFixed(2);save();};
+$('mirror').onchange=()=>{cfg.mirror=$('mirror').checked;save();};
+$('policy').onchange=()=>{cfg.policy=$('policy').value;save();};
+$('resetZones').onclick=()=>{cfg.zones=evenZones(cfg.n);save();toast('席の区切りを均等に戻しました')};
+function setMode(m){cfg.mode=m;save();$('mode1').setAttribute('aria-pressed',m===1);$('mode2').setAttribute('aria-pressed',m===2);for(const s of seats)s.ovr=null;}
+$('mode1').onclick=()=>setMode(1);$('mode2').onclick=()=>setMode(2);
+$('setBtn').onclick=()=>{$('setSheet').hidden=false};$('setClose').onclick=()=>{$('setSheet').hidden=true};
+$('qrBtn').onclick=()=>{$('qrSheet').hidden=false};$('qrClose').onclick=()=>{$('qrSheet').hidden=true};
+for(const sh of ['setSheet','qrSheet'])$(sh).addEventListener('click',e=>{if(e.target===$(sh))$(sh).hidden=true});
+let toastT=0;function toast(t,warn){const el=$('toast');el.textContent=t;el.classList.toggle('warn',!!warn);el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2400);}
+
+// ---------- 席の状態
+// cam: null=映っていない, {l,r} 各手が上がっているか / phone: null=未接続, true/false
+let seats=[];
+function buildSeats(){
+  const old=seats;seats=[];
+  for(let i=0;i<cfg.n;i++)seats.push(Object.assign({cam:null,camSeen:0,hand:[{up:false,t:0},{up:false,t:0}],phone:null,phoneSeen:0,conn:null,ovr:null,disT:0},old[i]?{phone:old[i].phone,phoneSeen:old[i].phoneSeen,conn:old[i].conn}:{}));
+  const box=$('seats');box.innerHTML='';
+  seats.forEach((s,i)=>{
+    const el=document.createElement('div');el.className='seat none';el.tabIndex=0;el.setAttribute('role','button');
+    el.innerHTML=`<div class="hd"><span class="no">${i+1}</span><span class="v">–</span></div><div class="src"><span class="c">カメラ –</span><span class="p">スマホ –</span></div><div class="tag"></div>`;
+    el.onclick=()=>cycleOverride(i);el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();cycleOverride(i)}};
+    box.appendChild(el);s.el=el;
+  });
+}
+buildSeats();setMode(cfg.mode);
+function cycleOverride(i){
+  const s=seats[i],max=cfg.mode;
+  const order=[null,...Array.from({length:max+1},(_,k)=>k)];
+  const idx=order.indexOf(s.ovr);s.ovr=order[(idx+1)%order.length];
+  toast(s.ovr==null?`${i+1}番：自動に戻しました`:`${i+1}番：手動で ${s.ovr}本 にしました`);
+  if(s.conn&&s.ovr!=null)try{s.conn.send({type:'force',up:s.ovr>0})}catch(e){}
+}
+$('nextBtn').onclick=()=>{for(const s of seats)s.ovr=null;frozen=null;toast('手動修正を解除しました')};
+
+// ---------- 突き合わせ
+const now=()=>performance.now();
+let frameDt=100; // カメラ1コマの間隔（ms、移動平均）。遅いPCでも判定窓が空にならないように使う
+const WIN=()=>Math.max(1500,3*frameDt); // 確定のときに振り返る長さ（ms）
+// 直前 WIN ms のカメラ記録から：映っていた割合が4割未満なら null、そうでなければ上がった手の数の最大
+function camWindow(s,t){
+  const w=WIN(),h=(s.hist||[]).filter(e=>t-e.t<=w);if(!h.length)return null;
+  const seen=h.filter(e=>e.h);if(seen.length<h.length*0.4)return null;
+  let best=0;for(const e of seen){const n=(e.h[0]!=null&&e.h[0]>=cfg.camTh?1:0)+(e.h[1]!=null&&e.h[1]>=cfg.camTh?1:0);if(n>best)best=n;}
+  return best;
+}
+function seatVotes(s,t,win){
+  const camOK=win?camWindow(s,t)!=null:(s.cam&&t-s.camSeen<Math.max(600,2.5*frameDt)), phOK=s.phone!=null&&s.conn&&t-s.phoneSeen<3500;
+  const camHands=!camOK?null:win?camWindow(s,t):(s.cam.l?1:0)+(s.cam.r?1:0);
+  const camV=camHands==null?null:(cfg.mode===1?(camHands>0?1:0):camHands);
+  const phV=phOK?(s.phone?1:0):null;
+  let v,conflict=false;
+  if(camV==null&&phV==null)v=null;
+  else if(camV==null)v=phV;
+  else if(phV==null)v=camV;
+  else{
+    const dis=cfg.mode===1?camV!==phV:(phV===1&&camV===0)||(phV===0&&camV===2);
+    if(dis){if(!s.disT)s.disT=t;}else s.disT=0;
+    conflict=dis&&t-s.disT>700;
+    if(!dis)v=camV;
+    else if(cfg.policy==='phone')v=cfg.mode===1?phV:(phV?Math.max(1,camV):0);
+    else if(cfg.policy==='any')v=cfg.mode===1?Math.max(camV,phV):Math.max(camV,phV);
+    else v=camV;
+  }
+  if(camV==null||phV==null)s.disT=0;
+  const manual=s.ovr!=null;
+  return {v:manual?s.ovr:v,auto:v,camV,phV,conflict:conflict&&!manual,manual,camOK,phOK};
+}
+let frozen=null;
+$('freezeBtn').onclick=()=>{if(frozen){frozen=null;$('freezeBtn').textContent='この瞬間で確定';toast('確定を解除しました');}else{frozen=calcTotal(now(),true);$('freezeBtn').textContent='確定を解除';toast(`確定：${frozen.n}本 ${frozen.n*frozen.n}点`);}};
+function calcTotal(t,win){let n=0,unk=0,conf=0;const per=seats.map(s=>{const r=seatVotes(s,t,win);if(r.v==null)unk++;else n+=r.v;if(r.conflict)conf++;return r});return {n,unk,conf,per};}
+function render(){
+  const t=now(),cur=calcTotal(t),show=frozen||cur;
+  $('totN').textContent=show.n;$('totP').textContent=(show.n*show.n)+'点';
+  $('totalBox').classList.toggle('frozen',!!frozen);
+  let lock=$('totalBox').querySelector('.lock');if(frozen&&!lock){lock=document.createElement('span');lock.className='lock';lock.textContent='確定中';$('totalBox').appendChild(lock)}else if(!frozen&&lock)lock.remove();
+  const notes=[];if(cur.conf)notes.push(`食い違い ${cur.conf}席`);if(cur.unk)notes.push(`判定できない席 ${cur.unk}`);$('totNote').textContent=notes.join('　');
+  seats.forEach((s,i)=>{
+    const r=cur.per[i],el=s.el;
+    el.classList.toggle('up',(r.v||0)>0);el.classList.toggle('none',r.v==null);el.classList.toggle('conflict',r.conflict);el.classList.toggle('manual',r.manual);
+    el.querySelector('.v').textContent=r.v==null?'–':(cfg.mode===1?(r.v?'挙手':'下'):r.v+'本');
+    el.querySelector('.c').textContent='カメラ '+(r.camV==null?'–':cfg.mode===1?(r.camV?'上':'下'):r.camV+'本');
+    el.querySelector('.p').textContent='スマホ '+(r.phV==null?(s.conn?'待機':'–'):(r.phV?'上':'下'));
+    el.querySelector('.tag').textContent=r.manual?'手動（タップで切替）':r.conflict?'カメラとスマホが食い違い':'';
+  });
+  const nc=seats.filter(s=>s.conn).length;$('netTxt').textContent=`スマホ接続 ${nc}台`;$('netDot').className='dot'+(nc?' on':'');
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+
+// ---------- スマホとの接続（WebRTC / PeerJS）
+let peer=null,peerId=store.get('kyoshu-pc-id');
+function joinURL(id){const u=new URL('index.html',location.href);u.search='?pc='+encodeURIComponent(id)+'&r=s';return u.href;}
+function showQR(id){
+  const url=joinURL(id);$('joinUrl').textContent=url;
+  try{const q=qrcode(0,'M');q.addData(url);q.make();$('qr').innerHTML=q.createSvgTag({cellSize:6,margin:2,scalable:true});}catch(e){$('qr').textContent='QRを作れませんでした'}
+}
+$('copyUrl').onclick=()=>{const u=$('joinUrl').textContent;try{navigator.clipboard.writeText(u).then(()=>toast('URLをコピーしました'),()=>toast('コピーできませんでした',true))}catch(e){}};
+function startPeer(retry){
+  if(typeof Peer==='undefined'){$('joinUrl').textContent='接続の部品を読み込めませんでした（ネット接続を確認してください）';return}
+  if(!peerId||retry){peerId='kyoshu-'+Math.random().toString(36).slice(2,8);store.set('kyoshu-pc-id',peerId);}
+  peer=new Peer(peerId);
+  peer.on('open',id=>{showQR(id);});
+  peer.on('error',e=>{
+    if(e.type==='unavailable-id'){peer.destroy();setTimeout(()=>startPeer(true),300);return}
+    $('netDot').className='dot bad';toast('スマホとの接続でエラー：'+e.type,true);
+  });
+  peer.on('disconnected',()=>{setTimeout(()=>{try{peer.reconnect()}catch(e){}},1500)});
+  peer.on('connection',conn=>{
+    let seatIdx=null;
+    conn.on('data',m=>{
+      if(!m||typeof m!=='object')return;
+      const k=(+m.seat|0)-1;if(k<0||k>=seats.length){try{conn.send({type:'seats',n:seats.length})}catch(e){};return}
+      if(seatIdx!==k){
+        if(seatIdx!=null&&seats[seatIdx].conn===conn){seats[seatIdx].conn=null;seats[seatIdx].phone=null;}
+        if(seats[k].conn&&seats[k].conn!==conn)try{seats[k].conn.close()}catch(e){}
+        seatIdx=k;seats[k].conn=conn;try{conn.send({type:'hello',seat:k+1,n:seats.length})}catch(e){}
+        toast(`${k+1}番のスマホがつながりました`);
+      }
+      if(typeof m.up==='boolean'){seats[k].phone=m.up;seats[k].phoneSeen=now();}
+    });
+    conn.on('close',()=>{if(seatIdx!=null&&seats[seatIdx].conn===conn){seats[seatIdx].conn=null;seats[seatIdx].phone=null;toast(`${seatIdx+1}番のスマホが切れました`,true)}});
+  });
+}
+startPeer(false);
+
+// ---------- カメラ（MediaPipe Pose）
+const cv=$('cv'),ctx=cv.getContext('2d');
+let video=null,lms=[],lmMake=null,camRunning=false,lastPoses=[],fps=0;
+const crops=[]; // 席ごとの切り出し用キャンバス
+const MP='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const MODEL=m=>`https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${m}/float16/1/pose_landmarker_${m}.task`;
+async function listCams(){try{const ds=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');const sel=$('camSel');sel.innerHTML='<option value="">標準のカメラ</option>'+ds.map((d,i)=>`<option value="${d.deviceId}">${d.label||'カメラ'+(i+1)}</option>`).join('');sel.value=cfg.camId||'';}catch(e){}}
+$('camSel').onchange=()=>{cfg.camId=$('camSel').value;save();if(camRunning)openCam();};
+async function openCam(){
+  if(video&&video.srcObject)video.srcObject.getTracks().forEach(t=>t.stop());
+  video=video||Object.assign(document.createElement('video'),{muted:true,playsInline:true});
+  const c={width:{ideal:1280},height:{ideal:720}};if(cfg.camId)c.deviceId={exact:cfg.camId};
+  video.srcObject=await navigator.mediaDevices.getUserMedia({video:c,audio:false});
+  await video.play();
+  cv.width=video.videoWidth||1280;cv.height=video.videoHeight||720;
+}
+$('camStart').onclick=async()=>{
+  $('camStart').disabled=true;$('camMsg').textContent='カメラを起動しています…';
+  try{await openCam();listCams();}catch(e){$('camMsg').textContent='カメラを使えませんでした。ブラウザのカメラ許可を確認してください（'+e.name+'）';$('camStart').disabled=false;return}
+  $('camMsg').textContent='骨格検出を読み込んでいます…（初回は10秒ほど）';
+  try{
+    const {PoseLandmarker,FilesetResolver}=await import(MP+'/vision_bundle.mjs');
+    const fs=await FilesetResolver.forVisionTasks(MP+'/wasm');
+    // 全体画像で複数人を探すと、並んで座った審査員の半分ほどを見落とす（動画で検証済み）。
+    // そこで席ごとに映像を切り出し、1席につき1人を検出する
+    const buf=new Uint8Array(await (await fetch(MODEL(cfg.model==='lite'?'lite':'full'))).arrayBuffer());
+    const opts=d=>({baseOptions:{modelAssetBuffer:buf,delegate:d},runningMode:'VIDEO',numPoses:1,minPoseDetectionConfidence:0.5,minPosePresenceConfidence:0.5,minTrackingConfidence:0.5});
+    let dlg='GPU';try{lms=[await PoseLandmarker.createFromOptions(fs,opts('GPU'))];}catch(e){dlg='CPU';lms=[await PoseLandmarker.createFromOptions(fs,opts('CPU'))];}
+    lmMake=()=>PoseLandmarker.createFromOptions(fs,opts(dlg));
+    await ensureLms();
+  }catch(e){$('camMsg').textContent='骨格検出を読み込めませんでした。ネット接続を確認して、ページを開き直してください。';$('camStart').disabled=false;return}
+  $('camOver').hidden=true;$('camTip').hidden=false;setTimeout(()=>$('camTip').hidden=true,8000);
+  camRunning=true;requestAnimationFrame(camLoop);
+};
+let lastVT=-1,fpsN=0,fpsT=0;
+let lmBusy=false,lastFrameT=0,slowWarned=false;
+async function ensureLms(){ // 席の数だけ検出器を用意
+  if(lmBusy)return;lmBusy=true;
+  try{while(lms.length<cfg.n)lms.push(await lmMake());}finally{lmBusy=false}
+}
+// 左から k 番目の区画の切り出し範囲（0..1）。隣の席に少しはみ出して取る
+function cropBox(k){const xs=[0,...cfg.zones,1],a=xs[k],b=xs[k+1],m=(b-a)*0.25;return [Math.max(0,a-m),Math.min(1,b+m),a,b];}
+function camLoop(){
+  if(!camRunning)return;requestAnimationFrame(camLoop);
+  const t=now();
+  if(video.readyState>=2&&video.currentTime!==lastVT&&lms.length>=cfg.n){
+    lastVT=video.currentTime;
+    const VW=video.videoWidth,VH=video.videoHeight,per=new Array(cfg.n).fill(null);
+    for(let k=0;k<cfg.n;k++){
+      const [x0,x1,a,b]=cropBox(k),sx=Math.round(x0*VW),sw=Math.max(8,Math.round((x1-x0)*VW));
+      const sc=Math.min(1,480/VH),c=crops[k]||(crops[k]=document.createElement('canvas'));
+      const cw=Math.round(sw*sc),ch=Math.round(VH*sc);if(c.width!==cw||c.height!==ch){c.width=cw;c.height=ch;}
+      c.getContext('2d').drawImage(video,sx,0,sw,VH,0,0,cw,ch);
+      try{
+        const r=lms[k].detectForVideo(c,t),p=r.landmarks&&r.landmarks[0];if(!p)continue;
+        const q=p.map(l=>({x:(sx+l.x*sw)/VW,y:l.y,visibility:l.visibility}));
+        const mid=(q[11].x+q[12].x)/2,tol=(b-a)*0.1;
+        if(mid<a-tol||mid>b+tol)continue; // 隣の席の人をつかんだ
+        per[k]=q;
+      }catch(e){}
+    }
+    if(lastFrameT)frameDt=frameDt*0.8+Math.min(3000,t-lastFrameT)*0.2;lastFrameT=t;
+    lastPoses=per.filter(Boolean);processSeatPoses(per,t);
+    fpsN++;
+  }
+  if(t-fpsT>1000){fps=fpsN;fpsN=0;fpsT=t;if(fps<5&&fps>0&&cfg.model!=='lite'&&!slowWarned&&t>15000){slowWarned=true;toast('カメラの処理が遅めです。設定の「骨格検出の精度」を軽量にすると速くなります',true);}$('camTxt').textContent=`カメラ ${fps}fps`;$('camDot').className='dot '+(fps>=8?'on':'bad');}
+  draw();
+}
+
+// 姿勢 → 席ごとの挙手
+const L={nose:0,ls:11,rs:12,le:13,re:14,lw:15,rw:16};
+function seatOfX(x){ // x: 映像上の0..1（左→右）
+  let k=0;while(k<cfg.zones.length&&x>cfg.zones[k])k++;
+  return cfg.rtl?cfg.n-1-k:k;
+}
+// 全体画像の姿勢リストを区画に振り分ける（テスト用）
+function processPoses(poses,t){
+  const per=new Array(cfg.n).fill(null);
+  for(const p of poses){
+    const ls=p[L.ls],rs=p[L.rs];if(!ls||!rs)continue;
+    const cx=(ls.x+rs.x)/2,sw=Math.hypot(ls.x-rs.x,ls.y-rs.y);
+    let k=0;while(k<cfg.zones.length&&cx>cfg.zones[k])k++;
+    if(!per[k]||sw>Math.hypot(per[k][11].x-per[k][12].x,per[k][11].y-per[k][12].y))per[k]=p;
+  }
+  processSeatPoses(per,t);
+}
+// per[k]: 左から k 番目の区画の姿勢（なければ null）
+function processSeatPoses(per,t){
+  const best=per.map((p,k)=>{
+    if(!p)return null;const ls=p[L.ls],rs=p[L.rs];
+    if((ls.visibility??1)<0.4&&(rs.visibility??1)<0.4)return null;
+    const sw=Math.hypot(ls.x-rs.x,ls.y-rs.y);if(sw<0.02)return null;
+    return {p,sw,cx:(ls.x+rs.x)/2,seat:cfg.rtl?cfg.n-1-k:k};
+  });
+  // 席ごとの記録（確定のときに直前1.5秒を振り返る）。映っていない席は h:null
+  const got=new Set(best.filter(Boolean).map(b=>b.seat));
+  seats.forEach((s,k)=>{s.hist=s.hist||[];if(!got.has(k))s.hist.push({t,h:null});while(s.hist.length&&t-s.hist[0].t>Math.max(3000,4*WIN()))s.hist.shift();});
+  best.forEach(b=>{if(!b)return;const k=b.seat;
+    const s=seats[k];if(!s)return;
+    if(!b){return}
+    const p=b.p,sy=Math.min(p[L.ls].y,p[L.rs].y);
+    const hand=(w)=>{if(!w||(w.visibility??1)<0.3)return null;return (sy-w.y)/b.sw;}; // 正：肩より上
+    const hs=[hand(p[L.lw]),hand(p[L.rw])];
+    const on=cfg.camTh,off=Math.max(-0.2,cfg.camTh-0.25);
+    hs.forEach((h,i)=>{const H=s.hand[i];
+      if(h==null){return}
+      const want=H.up?h>off:h>=on;
+      if(want!==H.up){if(!H.cand||H.cand.v!==want)H.cand={v:want,t};else if(t-H.cand.t>=150){H.up=want;H.cand=null;}}else H.cand=null;
+    });
+    s.cam={l:s.hand[0].up,r:s.hand[1].up};s.camSeen=t;s.camPose=b;s.camH=hs;s.hist.push({t,h:hs});
+  });
+}
+
+// 描画：映像・骨格・席の区切り
+function draw(){
+  const W=cv.width,H=cv.height;ctx.save();
+  if(cfg.mirror){ctx.translate(W,0);ctx.scale(-1,1);}
+  if(video&&video.readyState>=2)ctx.drawImage(video,0,0,W,H);else{ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);}
+  // 区切り線と席番号
+  ctx.lineWidth=Math.max(2,W/400);
+  const xs=[0,...cfg.zones,1];
+  for(let i=0;i<cfg.zones.length;i++){const x=cfg.zones[i]*W;ctx.strokeStyle=dragI===i?'#ffcf33':'#ffffffcc';ctx.setLineDash([12,10]);ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  ctx.setLineDash([]);
+  for(let k=0;k<cfg.n;k++){
+    const seatNo=cfg.rtl?cfg.n-k:k+1,cx=(xs[k]+xs[k+1])/2*W,s=seats[seatNo-1];
+    ctx.save();ctx.translate(cx,H*0.07);if(cfg.mirror)ctx.scale(-1,1);
+    const up=s&&s.cam&&(s.cam.l||s.cam.r);
+    ctx.fillStyle=up?'#ffcf33':'#000a';ctx.beginPath();ctx.arc(0,0,H*0.045,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=up?'#1a1400':'#fff';ctx.font=`bold ${Math.round(H*0.05)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(seatNo,0,H*0.003);ctx.restore();
+  }
+  // 骨格（肩・肘・手首と、肩の高さの基準線）
+  for(const p of lastPoses){
+    const pt=i=>[p[i].x*W,p[i].y*H];
+    ctx.strokeStyle='#7fb2ffcc';ctx.lineWidth=Math.max(3,W/300);
+    for(const [a,b] of [[11,12],[11,13],[13,15],[12,14],[14,16]]){if((p[a].visibility??1)<0.3||(p[b].visibility??1)<0.3)continue;ctx.beginPath();ctx.moveTo(...pt(a));ctx.lineTo(...pt(b));ctx.stroke();}
+    const sw=Math.hypot(p[11].x-p[12].x,p[11].y-p[12].y),sy=Math.min(p[11].y,p[12].y)-cfg.camTh*sw;
+    ctx.strokeStyle='#ffcf3388';ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(Math.min(p[11].x,p[12].x)*W-sw*W*0.6,sy*H);ctx.lineTo(Math.max(p[11].x,p[12].x)*W+sw*W*0.6,sy*H);ctx.stroke();ctx.setLineDash([]);
+    for(const w of [15,16]){if((p[w].visibility??1)<0.3)continue;const up=(Math.min(p[11].y,p[12].y)-p[w].y)/sw>=cfg.camTh;ctx.fillStyle=up?'#ffcf33':'#7fb2ff';ctx.beginPath();ctx.arc(...pt(w),Math.max(6,W/120),0,Math.PI*2);ctx.fill();}
+  }
+  ctx.restore();
+}
+// 区切り線のドラッグ
+let dragI=-1;
+function toX(e){const r=cv.getBoundingClientRect();let x=(e.clientX-r.left)/r.width;if(cfg.mirror)x=1-x;return x;}
+cv.addEventListener('pointerdown',e=>{const x=toX(e);let bi=-1,bd=0.03;cfg.zones.forEach((z,i)=>{const d=Math.abs(z-x);if(d<bd){bd=d;bi=i}});if(bi>=0){dragI=bi;cv.setPointerCapture(e.pointerId);}});
+cv.addEventListener('pointermove',e=>{if(dragI<0)return;const x=toX(e);const lo=(cfg.zones[dragI-1]??0)+0.03,hi=(cfg.zones[dragI+1]??1)-0.03;cfg.zones[dragI]=Math.min(hi,Math.max(lo,x));});
+cv.addEventListener('pointerup',()=>{if(dragI>=0){dragI=-1;save();}});
+if(!camRunning)draw();
+
+// ---------- テスト用（?test のときだけ）
+if(TEST)window.__kyoshu={seats,cfg,processPoses:(p,t)=>{lastPoses=p;processPoses(p,t??now())},phone:(k,up)=>{seats[k].conn=seats[k].conn||{send(){}};seats[k].phone=up;seats[k].phoneSeen=now();},calc:(win)=>calcTotal(now(),win),vt:()=>video?video.currentTime:null};
+</script>
+</body>
+</html>

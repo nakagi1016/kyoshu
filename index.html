@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>挙手センサー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  color-scheme: dark;
+  --bg:#101118; --panel:#1b1d27; --line:#2c2f3d; --ink:#eceef6; --mute:#8d92a8;
+  --down:#2e3346; --downInk:#c9cde0; --up:#ffcf33; --upInk:#1a1400; --ok:#5fd39a; --warn:#ff8a6a;
+  --disp:"Dela Gothic One","Hiragino Sans","Noto Sans JP",sans-serif;
+  --body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink)}
+body{font-family:var(--body);font-size:15px;line-height:1.6;padding-inline:12px;padding-block:10px 12px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:36px}
+.top h1{font-family:var(--disp);font-weight:400;font-size:17px;margin:0;letter-spacing:.03em}
+.top .r{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--mute)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mute);display:inline-block;margin-right:5px;vertical-align:1px}
+.dot.on{background:var(--ok)} .dot.bad{background:var(--warn)}
+button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:8px 14px;background:#262a3a;color:var(--ink);cursor:pointer}
+#sndBtn.off{background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:var(--mute)}
+button:focus-visible{outline:2px solid var(--up);outline-offset:2px}
+
+.stage{flex:1;min-height:0;border-radius:22px;background:var(--down);color:var(--downInk);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;position:relative;overflow:hidden;
+  user-select:none;-webkit-user-select:none;touch-action:manipulation;cursor:pointer;transition:background .1s,color .1s;-webkit-tap-highlight-color:transparent}
+.stage.up{background:var(--up);color:var(--upInk)}
+.stage.idle{background:#1f2230;color:var(--ink)}
+.big{font-family:var(--disp);font-size:clamp(72px,26vw,180px);line-height:1}
+.hint{font-size:13px;opacity:.7;text-align:center;padding-inline:16px}
+.stage .count{position:absolute;top:14px;left:18px;font-size:13px;opacity:.75;font-variant-numeric:tabular-nums}
+.stage .count b{font-family:var(--mono);font-size:22px;margin-right:2px}
+.meter{position:absolute;left:18px;right:18px;bottom:16px;height:6px;border-radius:3px;background:rgba(0,0,0,.25)}
+.meter i{position:absolute;inset:0 auto 0 0;width:0;border-radius:3px;background:currentColor;opacity:.8}
+.meter s{position:absolute;top:-4px;bottom:-4px;width:2px;background:currentColor;opacity:.5}
+.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .35s}
+.flash.go{opacity:.35;transition:none}
+
+.toast{position:fixed;left:50%;top:calc(58px + env(safe-area-inset-top,0px));white-space:nowrap;transform:translateX(-50%);background:#000c;color:#fff;padding:9px 16px;border-radius:999px;font-size:13px;max-width:calc(100% - 32px);text-align:center;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}
+.toast.show{opacity:1}
+.toast.warn{background:#5a1f12f0}
+
+/* 設定パネル */
+.sheet{position:fixed;inset:0;background:#000a;display:flex;align-items:flex-end;justify-content:center;z-index:10}
+[hidden]{display:none!important}
+.panel{background:var(--bg);width:100%;max-width:560px;max-height:88%;overflow:auto;border-radius:18px 18px 0 0;padding:16px 16px calc(24px + env(safe-area-inset-bottom,0px));box-sizing:border-box;display:flex;flex-direction:column;gap:12px}
+.panel header{display:flex;justify-content:space-between;align-items:center}
+.panel header h2{margin:0;font-size:16px}
+section{background:var(--panel);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+section h3{font-size:12px;margin:0;color:var(--mute);letter-spacing:.08em;font-weight:700}
+.note{font-size:12px;color:var(--mute);margin:0}
+label.set{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:13px;align-items:center}
+label.set input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--up)}
+label.set output{font-family:var(--mono);font-size:13px}
+.checks{display:flex;gap:18px;flex-wrap:wrap;font-size:14px}
+.checks input{accent-color:var(--up);width:18px;height:18px;vertical-align:-3px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.row button{padding:12px 8px}
+.cal small{display:block;font-weight:400;font-size:11px;color:var(--mute);margin-top:2px}
+.cal.done{box-shadow:inset 0 0 0 2px var(--ok)}
+.seatgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.seatgrid button{font-family:var(--disp);font-weight:400;font-size:28px;padding:16px 0}
+.log{font-family:var(--mono);font-size:12px;color:var(--mute);max-height:140px;overflow:auto;margin:0;padding:0;list-style:none}
+.log li{padding:3px 0;border-bottom:1px solid var(--line)}
+.log li:first-child{color:var(--ink)}
+.dbg{font-family:var(--mono);font-size:11px;color:var(--mute);white-space:pre-wrap;margin:0}
+textarea{width:100%;box-sizing:border-box;height:90px;background:var(--bg);color:var(--mute);border:1px solid var(--line);border-radius:8px;font-family:var(--mono);font-size:10px}
+.stage.picked{background:var(--ok);color:#06231a}
+.stage.picked .big{font-size:clamp(40px,14vw,80px)}
+@media (prefers-reduced-motion:reduce){.stage,.flash,.toast{transition:none}}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>挙手センサー</h1>
+  <div class="r"><span id="status"><span class="dot" id="dot"></span><span id="stTxt">停止中</span></span><button id="sndBtn" aria-pressed="true">音あり</button><button id="openSet" aria-haspopup="dialog">設定</button></div>
+</div>
+
+<div class="stage idle" id="stage" role="button" tabindex="0" aria-live="polite">
+  <div class="count" id="countBox" hidden><b id="cnt">0</b>回</div>
+  <div class="big" id="bigTxt">開始</div>
+  <div class="hint" id="hint">画面をタップしてセンサーを開始</div>
+  <div class="meter" id="meter" hidden><i id="fill"></i><s id="mk"></s></div>
+  <div class="flash" id="flash"></div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<div class="sheet" id="seatSheet" hidden>
+  <div class="panel" role="dialog" aria-label="席番号">
+    <header><h2>自分の席番号を選んでください</h2></header>
+    <p class="note">会場の画面に出ている番号です。あとから設定で変えられます。</p>
+    <div class="seatgrid" id="seatGrid"></div>
+  </div>
+</div>
+<div class="sheet" id="nameSheet" hidden>
+  <div class="panel" role="dialog" aria-label="名前">
+    <header><h2>名前を入れてください</h2></header>
+    <p class="note">会場の画面に出ます。グループ（大喜利・審査）は運営が決めます。</p>
+    <input id="nameIn" type="text" maxlength="12" placeholder="例：なかもと" autocomplete="off" style="font:inherit;font-size:20px;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink)">
+    <button class="primary" id="nameOk" style="font-size:18px;padding:14px">参加する</button>
+  </div>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="panel" role="dialog" aria-label="設定">
+    <header><h2>設定</h2><button id="closeSet">閉じる</button></header>
+
+    <section id="pcSec" hidden>
+      <h3>会場PCとの接続</h3>
+      <p class="note" id="pcInfo">未接続</p>
+      <button id="seatChange">席番号を変える</button>
+      <button id="nameChange" hidden>名前を変える</button>
+    </section>
+
+    <section>
+      <h3>判定</h3>
+      <label class="set" for="th">この高さ以上持ち上げたら挙手<output id="thOut">30 cm</output>
+        <input type="range" id="th" min="15" max="60" step="1" value="30"></label>
+      <p class="note">膝の上から頭の上まで上げると60〜90cmほど動きます。判定が違っていたら、メイン画面をタップすると切り替わります。</p>
+    </section>
+
+    <section>
+      <h3>音と振動</h3>
+      <div class="checks">
+        <label><input type="checkbox" id="snd" checked> 音</label>
+        <label><input type="checkbox" id="vib" checked> 振動（Androidのみ）</label>
+      </div>
+      <p class="note">iPhoneのマナーモード（消音）中でも音が鳴るようにしています。鳴らないときは本体の音量を上げてください。</p>
+      <button id="testSnd">音を試す</button>
+    </section>
+
+    <section>
+      <h3>ゆっくり動かす人向け：スマホの向き</h3>
+      <p class="note">最初に1回はっきり上げ下げすると、そのときの向きを自動で覚えて、ゆっくりした動きの判定に使います。うまくいかないときだけ手動で登録してください（3秒後に1秒間記録）。</p>
+      <div class="row">
+        <button class="cal" id="poseDown" disabled>下げた姿勢<small>手動で登録</small></button>
+        <button class="cal" id="poseUp" disabled>上げた姿勢<small>手動で登録</small></button>
+      </div>
+      <p class="note" id="poseInfo">まだ覚えていません。</p>
+      <button id="poseClear">覚えた向きを消す</button>
+    </section>
+
+    <section>
+      <h3>記録</h3>
+      <ul class="log" id="log"><li>まだ挙手はありません</li></ul>
+      <button id="reset">回数と記録をリセット</button>
+    </section>
+
+    <section>
+      <h3>誤判定があったとき</h3>
+      <p class="note">直近30秒のセンサーの値をコピーして、チャットに貼って送ってください。タップで直した場面も記録に残ります。</p>
+      <button id="copyBtn" disabled>直近30秒のデータをコピー</button>
+      <textarea id="copyArea" readonly hidden aria-label="コピー用データ"></textarea>
+    </section>
+
+    <section>
+      <h3>センサーの値</h3>
+      <pre class="dbg" id="dbg">開始前</pre>
+    </section>
+  </div>
+</div>
+
+<script>
+// 挙手判定コア v3
+// 重力方向の上下加速度から「ひと振りの動き（バースト）」ごとの上下移動量を測る。
+// 実機では激しい動きの後にセンサーのずれが数秒残るため、長時間の積分はせず、
+// 動き1回ごとに速度0から積分し直す。ゆっくりした上げ下げは、止まった時点の補正後の高さで判定する。
+function createDetector(opt){
+  const o=Object.assign({
+    th:0.30,         // 挙手と判定する持ち上げ量 [m]
+    downRatio:0.75,  // 解除に必要な下ろし量（×th）
+    burstOn:3,     // バースト開始：平滑後の加速度 [m/s^2]
+    burstOff:2,    // バースト終了：これを下回った状態が続いたら
+    burstOffMs:120,
+    burstMaxMs:1500,
+    burstHardMs:3000,
+    slowCarryMs:0,   // ゆっくり動き始めてからこの時間内に勢いがついたら、動き出しから引き継ぐ
+    endSpeed:0.45,   // バースト終了には推定速度がこれ未満であること [m/s]
+    carryRatio:1.6,  // 動き続けている区間（時間切れ後）での判定の厳しさ（×th）
+    carryV:false,    // 時間切れ後に速度を引き継ぐか（実機ではずれも引き継ぐので使わない）
+    stillAcc:0.55, stillRot:45, stillMs:150, // ゆっくり動作用の静止判定
+    slowWin:6000,    // ゆっくり動作の上昇量を測る時間幅 [ms]
+    slowMaxMs:6000,  // ゆっくり動作の最長
+    stillVMs:150,    // 推定速度0.5m/sあたりに追加で求める静止時間 [ms]
+    calmAcc:0.35, calmRot:25, calmMs:400, // 「静かな状態」の条件
+    maxDisp:1.3,     // 腕を動かしてありえる最大の上下移動 [m]
+    postBurstMs:250, // 勢いのある動きの直後はセンサーがずれやすいので、この間は途中判定しない
+    slowLiveMs:4000, slowLiveRatio:1.15, // ゆっくり動作の途中判定
+    earlyRatio:1.0,
+    poseMinSep:35, poseOn:0.72, poseOff:0.35, poseHoldMs:250, poseMaxRot:120, poseAfterBurstMs:800, poseEvidMs:4000, poseEvidRatio:0.5,
+    autoPose:true, autoMinRatio:1.3, autoWinMs:2000, autoStillMs:300, autoMaxRot:40, autoMaxAcc:4, // 姿勢の自動学習 // 姿勢による補助判定  // バースト中でも、この割合×th 動いたら即判定
+  },opt||{});
+  const S={state:false,lv:null,lb:[0,0,0],linS:0,stillT:0,lastT:null,age:0,ring:[],
+    burst:null,v:0,p:0,moving:false,seg:null,hist:[],rise:0,fall:0,peak:0,upAt:0,hasLinear:null,gl:null,lastBurst:null};
+  const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  // ---- 姿勢（任意）：登録した「下げた姿勢」「上げた姿勢」のどちらに近いかを、ゆっくりした動きの補助に使う
+  const P={down:null,up:null,score:null,cand:null,candT:0,level:null,sep:0};
+  const angle=(a,b)=>Math.acos(Math.max(-1,Math.min(1,dot(a,b)/(Math.hypot(...a)*Math.hypot(...b)||1))))*180/Math.PI;
+  function setPose(kind,g){P[kind]=g.slice();P.manual=true;P.auto=false;P.level=null;P.sep=P.down&&P.up?angle(P.down,P.up):0;}
+  const nrm=a=>Math.hypot(a[0],a[1],a[2]);
+
+  function setState(up,t,ev,h,why){
+    if(up===S.state)return;
+    S.state=up;
+    if(up){S.upAt=t;ev.push({type:'up',t,h,why});}
+    else ev.push({type:'down',t,h,why,held:t-S.upAt});
+    // はっきりした（勢いのある・大きい）動きのあとは、その後の静止姿勢を自動で覚える候補にする
+    S.learn=(why==='burst'||why==='burst-end')?{kind:up?'up':'down',t}:null;
+    S.slowRef=S.p; // ゆっくり動作の基準をリセット
+  }
+
+  function push(t,acc,accG,rot){
+    const ev=[];
+    if(!accG||accG[0]==null)return ev;
+    let dt=S.lastT==null?0.016:(t-S.lastT)/1000; S.lastT=t;
+    if(!(dt>0))return ev; if(dt>0.1)dt=0.1;
+    S.age+=dt;
+    let lin,gv;
+    const haveLin=!!(acc&&acc[0]!=null&&!isNaN(acc[0]));
+    S.hasLinear=haveLin;
+    if(haveLin){lin=acc;gv=[accG[0]-acc[0],accG[1]-acc[1],accG[2]-acc[2]];}
+    else{const k=Math.min(1,dt/0.25);S.gl=S.gl?S.gl.map((x,i)=>x+(accG[i]-x)*k):accG.slice();gv=S.gl;lin=[accG[0]-gv[0],accG[1]-gv[1],accG[2]-gv[2]];}
+    const gn=nrm(gv)||9.81;
+    S.g=gv;
+    const kk=Math.min(1,dt/0.12);
+    S.lv=S.lv?S.lv.map((x,i)=>x+(lin[i]-x)*kk):lin.slice();
+    const rr=rot&&rot[0]!=null?Math.hypot(rot[0],rot[1],rot[2]):0;
+    S.linS=nrm([S.lv[0]-S.lb[0],S.lv[1]-S.lb[1],S.lv[2]-S.lb[2]]);
+    const quiet=S.linS<o.stillAcc&&rr<o.stillRot;
+    S.stillT=quiet?S.stillT+dt*1000:0;
+    if(rr<20&&(S.age<0.6||(quiet&&S.stillT>150))){
+      const kb=Math.min(1,dt/(S.age<0.6?0.15:0.8));
+      S.lb=S.lb.map((x,i)=>x+(S.lv[i]-x)*kb);
+    }
+    // 上向きの加速度（機種による符号の違いは内積で打ち消される。軸に固定された癖は差し引く）
+    const av=(dot(lin,gv)-dot(S.lb,gv))/gn;
+    S.ring.push({t,dt,av,linS:S.linS});
+    while(S.ring.length&&t-S.ring[0].t>700)S.ring.shift();
+    if(S.age<0.6)return ev;
+
+    // ---- バースト（勢いのある動き1回）
+    if(!S.burst && S.linS>=o.burstOn){
+      // 直前の落ち着いていた時点までさかのぼって、速度0から積分
+      let b;
+      if(S.moving&&S.seg&&S.seg.buf.length&&t-S.seg.t0<o.slowCarryMs){
+        // ゆっくりした動きの途中から勢いがついた場合は、その動き出し（静止していた時点）から引き継ぐ
+        const g=S.seg;
+        b={t0:g.t0,v:S.v,p:S.p-g.p0,buf:g.buf.map(s=>({tt:s.tt,v:s.v,dt:s.dt})),offT:0,pa:S.pa??av};
+        let mn=0,mx=0;for(const s of g.buf){mn=Math.min(mn,s.h.p-g.p0);mx=Math.max(mx,s.h.p-g.p0);}
+        b.refMin=mn;b.refMax=mx;
+        S.moving=false;S.seg=null;S.v=0;
+      }else{
+        let k=S.ring.length-1; while(k>0&&S.ring[k-1].linS>0.6)k--;
+        b={t0:S.ring[k].t,v:0,p:0,buf:[],offT:0,pa:0};
+        for(let i=k;i<S.ring.length;i++){const r=S.ring[i];const v0=b.v;b.v+=(r.av+b.pa)/2*r.dt;b.pa=r.av;b.p+=(b.v+v0)/2*r.dt;b.buf.push({tt:r.t-b.t0,v:b.v,dt:r.dt});}
+      }
+      b.tRef=0;
+      // ゆっくり動作の履歴はバーストをまたいで比べられないので捨てる
+      S.hist=[];S.slowRef=S.p;
+      b.refMin=Math.min(b.refMin??0,b.p);b.refMax=Math.max(b.refMax??0,b.p);
+      S.burst=b;
+    }else if(S.burst){
+      const b=S.burst;const v0=b.v;b.v+=(av+b.pa)/2*dt;b.pa=av;b.p+=(b.v+v0)/2*dt;b.buf.push({tt:t-b.t0,v:b.v,dt});
+      b.refMin=Math.min(b.refMin,b.p);b.refMax=Math.max(b.refMax,b.p);
+      b.offT=S.linS<o.burstOff?b.offT+dt*1000:0;
+    }
+    if(S.burst){
+      const b=S.burst;
+      // 途中でも十分に動いたら即判定（上げ：上向きに動いている最中、下げ：下向きに動いている最中）
+      // 基準は「前回の判定以降でいちばん低い（高い）位置」。1回のバーストで下げてすぐ上げた場合にも対応
+      const k2=b.carried?o.carryRatio:1; // 動き続けている区間はずれが溜まりやすいので判定を厳しく
+      if(!S.state && b.p-b.refMin>=o.th*o.earlyRatio*k2 && b.v>0){setState(true,t,ev,b.p-b.refMin,'burst');b.refMin=b.refMax=b.p;b.tRef=t-b.t0;}
+      else if(S.state && b.refMax-b.p>=o.th*o.downRatio*o.earlyRatio*k2 && b.v<0){setState(false,t,ev,b.refMax-b.p,'burst');b.refMin=b.refMax=b.p;b.tRef=t-b.t0;}
+      // 加速度が落ち着いても、まだ速く動いている（等速で上げている途中）なら終わりにしない
+      // 時間切れも、速く動いている最中には区切らない（最長 burstHardMs まで延長）
+      const tOut=(t-b.t0>o.burstMaxMs && Math.abs(b.v)<o.endSpeed) || t-b.t0>o.burstHardMs;
+      // 本当に静止している（加速度も回転もほぼゼロ）なら、推定速度が残っていてもずれとみなして終える
+      const stillNow=S.stillT>=o.stillMs;
+      if((b.offT>=o.burstOffMs && Math.abs(b.v)<o.endSpeed) || tOut || stillNow){
+        // 終わり：腕は止まっているはずなので、残った速度をずれとして差し引いた移動量で確定
+        const T=(t-b.t0)||1,vEnd=b.v;let p=0,mn=Infinity,mx=-Infinity;
+        if(b.tRef<=0){mn=0;mx=0;}
+        for(const s of b.buf){p+=(s.v-vEnd*(s.tt/T))*s.dt;if(s.tt>=b.tRef){mn=Math.min(mn,p);mx=Math.max(mx,p);}}
+        S.lastBurst={disp:p,raw:b.p,dur:T,vEnd};
+        if(!S.state && p-mn>=o.th*k2)setState(true,t,ev,p-mn,'burst-end');
+        else if(S.state && mx-p>=o.th*o.downRatio*k2)setState(false,t,ev,mx-p,'burst-end');
+        S.burst=null;S.lastBurstT=t;
+        // 時間切れ（動き続けている）の場合は、速度を引き継いで次の区間を続ける
+        if(tOut && !stillNow && !(b.offT>=o.burstOffMs && Math.abs(b.v)<o.endSpeed)){
+          S.burst={t0:t,v:(o.carryV?b.v:0),p:0,buf:[{tt:0,v:(o.carryV?b.v:0),dt:0}],offT:b.offT,pa:b.pa,refMin:0,refMax:0,tRef:0,carried:true};
+        }
+      }
+    }
+
+    // ---- ゆっくりした上げ下げ
+    // 勢いのない動きは、静止から動き出した時点から積分する。止まったら補正して判定。
+    // 静かな状態から始まった動きなら、動いている最中でも少し厳しめの基準で判定する。
+    const inBurst=!!S.burst;
+    const calmNow=S.linS<o.calmAcc&&rr<o.calmRot;
+    if(!inBurst && !S.moving && !quiet){
+      let k=S.ring.length-1; while(k>0&&S.ring[k-1].linS>o.calmAcc)k--;
+      const g={t0:S.ring[k].t,p0:S.p,buf:[],clean:(S.calmT||0)>=o.calmMs && t-(S.lastBurstT??-1e9)>o.postBurstMs,mn:S.p,mx:S.p};
+      S.moving=true;S.seg=g;S.v=0;S.pa=S.ring[k].av;
+      for(let i=k+1;i<S.ring.length-1;i++){const r=S.ring[i];const v0=S.v;S.v+=(r.av+S.pa)/2*r.dt;S.pa=r.av;S.p+=(S.v+v0)/2*r.dt;const h={t:r.t,p:S.p};g.buf.push({tt:r.t-g.t0,v:S.v,dt:r.dt,h});S.hist.push(h);}
+    }
+    S.calmT=calmNow?(S.calmT||0)+dt*1000:0;
+    if(inBurst && S.moving){S.moving=false;S.seg=null;S.v=0;} // バースト中は別扱い
+    if(S.moving){
+      const g=S.seg;
+      const v0=S.v;S.v+=(av+(S.pa??av))/2*dt;S.pa=av;S.p+=(S.v+v0)/2*dt;
+      const h={t,p:S.p};g.buf.push({tt:t-g.t0,v:S.v,dt,h});S.hist.push(h);
+      g.mn=Math.min(g.mn,S.p);g.mx=Math.max(g.mx,S.p);
+      // 等速で動いている最中は加速度がほぼ0になるので、推定速度が大きいほど長い静止を求める
+      const needStill=o.stillMs+Math.min(o.stillVMs,o.stillVMs*Math.abs(S.v)/0.5);
+      if(S.stillT>=needStill){
+        const T=(t-g.t0)||1,vEnd=S.v;let p=g.p0;
+        for(const s of g.buf){p+=(s.v-vEnd*(s.tt/T))*s.dt;s.h.p=p;}
+        S.p=p;S.moving=false;S.v=0;
+        let mn=Infinity,mx=-Infinity;for(const hh of S.hist){if(t-hh.t<=o.slowWin){mn=Math.min(mn,hh.p);mx=Math.max(mx,hh.p);}}
+        if(S.slowRef!=null){mn=Math.min(mn,S.slowRef);mx=Math.max(mx,S.slowRef);}
+        // 勢いのある動きの直後に始まった区間はずれが大きいので判定に使わない。腕の長さを超える移動量もありえないので捨てる
+        const ok=g.t0-(S.lastBurstT??-1e9)>o.postBurstMs && Math.abs(S.p-g.p0)<o.maxDisp;
+        if(!ok){S.p=g.p0;for(const s of g.buf)s.h.p=g.p0;}
+        else if(!S.state && S.p-mn>=o.th)setState(true,t,ev,S.p-mn,'slow');
+        else if(S.state && mx-S.p>=o.th*o.downRatio)setState(false,t,ev,mx-S.p,'slow');
+      }
+      else if(t-g.t0>o.slowMaxMs){S.moving=false;S.v=0;S.p=g.p0;for(const s of g.buf)s.h.p=g.p0;}
+      // 静かな状態から始まった動きは、止まるのを待たずに判定（ずれを見込んで基準を上げる）
+      else if(g.clean && t-g.t0<o.slowLiveMs){
+        if(!S.state && S.p-g.mn>=o.th*o.slowLiveRatio && S.v>0){setState(true,t,ev,S.p-g.mn,'slow-live');g.mn=g.mx=S.p;}
+        else if(S.state && g.mx-S.p>=o.th*o.downRatio*o.slowLiveRatio && S.v<0){setState(false,t,ev,g.mx-S.p,'slow-live');g.mn=g.mx=S.p;}
+      }
+    }else{S.hist.push({t,p:S.p});}
+    while(S.hist.length&&t-S.hist[0].t>o.slowWin)S.hist.shift();
+    if(S.slowRef==null)S.slowRef=S.p;
+
+    // 向きが落ち着いている時間（手が多少揺れていても、向きが変わっていなければよい）
+    S.rotCalmT=rr<o.autoMaxRot?(S.rotCalmT||0)+dt*1000:0;
+    // ---- 姿勢の自動学習：はっきり上げた（下げた）直後に手が止まったら、その向きを覚える（手動登録がない場合）
+    if(S.learn&&!P.manual&&o.autoPose){
+      if(t-S.learn.t>o.autoWinMs||(S.learn.kind==='up')!==S.state)S.learn=null;
+      else if(S.rotCalmT>=o.autoStillMs&&S.linS<o.autoMaxAcc&&!S.burst){
+        const lb=S.lastBurst; if(!lb||Math.abs(lb.disp)<o.th*o.autoMinRatio||(lb.disp>0)!==(S.learn.kind==='up')){S.learn=null;}else{
+        const k=S.learn.kind,gg=gv.map(x=>x/gn);
+        P[k]=P[k]?P[k].map((x,i)=>x/Math.hypot(...P[k])*0.5+gg[i]*0.5):gg;
+        P.sep=P.down&&P.up?angle(P.down,P.up):0;P.level=k==='up'?1:0;P.cand=null;P.auto=true;S.learn=null;
+      }}
+    }
+    // ---- 姿勢の変化（登録済みで、2つの姿勢が十分に違うときだけ）
+    if(P.down&&P.up&&P.sep>=o.poseMinSep){
+      const ad=angle(gv,P.down),au=angle(gv,P.up);const sc=ad/(ad+au||1);P.score=sc;
+      const lv=sc>=o.poseOn?1:sc<=o.poseOff?0:null;
+      if(lv!=null&&lv!==P.level){ if(P.cand!==lv){P.cand=lv;P.candT=t;} else if(t-P.candT>=o.poseHoldMs && rr<o.poseMaxRot){
+        const prev=P.level;P.level=lv;P.cand=null;
+        // 姿勢が切り替わった瞬間だけ使う（勢いのある動きの判定を上書きしないよう、その最中と直後は使わない）
+        if(prev!=null && !S.burst && t-(S.lastBurstT??-1e9)>o.poseAfterBurstMs){
+          // 手首をひねっただけで反応しないよう、同じ向きの上下移動も少しは出ていることを条件にする
+          let mn=S.p,mx=S.p;for(const h of S.hist){if(t-h.t<=o.poseEvidMs){mn=Math.min(mn,h.p);mx=Math.max(mx,h.p);}}
+          const need=o.th*o.poseEvidRatio;
+          if(lv===1&&!S.state&&S.p-mn>=need)setState(true,t,ev,S.p-mn,'pose');
+          else if(lv===0&&S.state&&mx-S.p>=need)setState(false,t,ev,mx-S.p,'pose');
+        }
+      }} else if(lv===P.level)P.cand=null;
+    }
+    // 表示用
+    // 判定と同じ基準（前回の判定以降でいちばん低い／高い位置）からの量を出す
+    const b2=S.burst,g2=S.moving?S.seg:null;
+    if(!S.state){
+      S.rise=Math.max(0,b2?b2.p-b2.refMin:g2?S.p-Math.min(g2.mn,S.slowRef??S.p):0);S.fall=0;
+    }else{
+      S.fall=Math.max(0,b2?b2.refMax-b2.p:g2?Math.max(g2.mx,S.slowRef??S.p)-S.p:0);S.rise=0;
+    }
+    return ev;
+  }
+  // 手動で状態を直す（画面タップ）。以降はその位置を基準に測り直す
+  function force(up,t){
+    if(up===S.state)return;
+    S.state=up;if(up)S.upAt=t;
+    S.slowRef=S.p;S.hist=[];S.learn=null;
+    if(S.burst){const b=S.burst;b.refMin=b.refMax=b.p;b.tRef=t-b.t0;}
+    if(S.moving&&S.seg){S.seg.mn=S.seg.mx=S.p;}
+    P.level=P.down&&P.up?(up?1:0):P.level;P.cand=null;
+  }
+  return {push,S,o,P,setPose,force,reset(){S.state=false;S.burst=null;S.moving=false;S.v=0;}};
+}
+if(typeof module!=='undefined')module.exports={createDetector};
+
+</script>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const qs=new URLSearchParams(location.search);
+const det=createDetector({th:0.30});
+const D=det.S;
+let started=false,starting=false,startT=0,count=0,events=0,lastHzT=0,noSensorShown=false,linWarned=false,upWall=0;
+const rec=[],marks=[];
+let link=null;
+
+const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const saved=store.get('kyoshu2-set');
+if(saved){ if(saved.th)$('th').value=saved.th; if(saved.snd===false)$('snd').checked=false; if(saved.vib===false)$('vib').checked=false; }
+function updSettings(){
+  const cm=+$('th').value; det.o.th=cm/100; $('thOut').textContent=cm+' cm';
+  store.set('kyoshu2-set',{th:cm,snd:$('snd').checked,vib:$('vib').checked});
+}
+function sndUI(){const on=$('snd').checked,b=$('sndBtn');b.textContent=on?'音あり':'消音';b.classList.toggle('off',!on);b.setAttribute('aria-pressed',on);}
+$('th').oninput=updSettings;$('snd').onchange=()=>{updSettings();sndUI()};$('vib').onchange=updSettings;updSettings();sndUI();
+$('sndBtn').onclick=()=>{$('snd').checked=!$('snd').checked;updSettings();sndUI();if($('snd').checked){initAudio();beep('ok');}toast($('snd').checked?'音を鳴らします':'消音にしました');};
+
+let toastT=0;
+function toast(t,warn,ms){const el=$('toast');el.textContent=t;el.classList.toggle('warn',!!warn);el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),ms||2200);}
+
+// ---- 音：iPhoneの消音モードでも鳴るように「メディア再生」として鳴らす
+let ac=null;const pool={};
+function wavURI(freq,dur){
+  const sr=22050,n=Math.floor(sr*dur),buf=new ArrayBuffer(44+n*2),v=new DataView(buf);
+  const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))};
+  w(0,'RIFF');v.setUint32(4,36+n*2,true);w(8,'WAVEfmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,n*2,true);
+  for(let i=0;i<n;i++){const env=Math.min(1,i/200)*Math.exp(-4*i/n);const s=Math.sin(2*Math.PI*freq*i/sr)>0?1:-1;v.setInt16(44+i*2,s*env*9000,true);}
+  let bin='';const u8=new Uint8Array(buf);for(let i=0;i<u8.length;i+=4096)bin+=String.fromCharCode.apply(null,u8.subarray(i,i+4096));
+  return 'data:audio/wav;base64,'+btoa(bin);
+}
+const TONES={up:[1320,.16],down:[660,.1],fix:[990,.12],tick:[660,.08],rec:[990,.1],ok:[1320,.12],cancel:[440,.1]};
+function initAudio(){
+  try{if(navigator.audioSession)navigator.audioSession.type='playback';}catch(e){}
+  try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();ac.resume&&ac.resume();}catch(e){}
+  if(!navigator.audioSession){
+    // 古いiOS向け：<audio>で鳴らす（メディア扱いなので消音スイッチの影響を受けない）
+    for(const k in TONES){if(pool[k])continue;const src=wavURI(...TONES[k]);pool[k]={els:[0,1,2].map(()=>{const a=new Audio(src);a.preload='auto';return a}),i:0};
+      for(const a of pool[k].els){a.muted=true;const p=a.play();if(p&&p.then)p.then(()=>{a.pause();a.currentTime=0;a.muted=false}).catch(()=>{a.muted=false});}}
+  }
+}
+function beep(kind){
+  if(!$('snd').checked)return;
+  const pk=pool[kind];
+  if(pk){const a=pk.els[pk.i++%pk.els.length];try{a.currentTime=0;a.play().catch(()=>{})}catch(e){}return;}
+  try{const [f,d]=TONES[kind];ac=ac||new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;o.type='square';
+    g.gain.setValueAtTime(.14,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+d);o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+d)}catch(e){}
+}
+function vib(ms){if($('vib').checked&&navigator.vibrate){try{navigator.vibrate(ms)}catch(e){}}}
+$('testSnd').onclick=()=>{initAudio();beep('up')};
+
+// ---- 表示
+function addLog(text){const log=$('log');log.querySelectorAll('li:not([data-e])').forEach(x=>x.remove());const li=document.createElement('li');li.dataset.e=1;li.textContent=text;log.prepend(li);}
+let picked=false,qpos=0;
+function showState(up){
+  const s=$('stage');s.classList.remove('idle');s.classList.toggle('up',up);
+  if(picked){$('bigTxt').textContent='あなたの番！';return}
+  $('bigTxt').textContent=up?(qpos?`挙手！ ${qpos}番目`:'挙手！'):'下';
+}
+function setPicked(v){picked=v;$('stage').classList.toggle('picked',v);if(v){beep('ok');vib([80,60,80]);}showState(D.state);}
+function flash(){const f=$('flash');f.classList.add('go');requestAnimationFrame(()=>requestAnimationFrame(()=>f.classList.remove('go')));}
+function onEvent(e){
+  if(link)link.send(e.t);
+  const now=new Date().toLocaleTimeString('ja-JP');
+  marks.push({t:e.t,type:e.type});
+  if(e.type==='up'){count++;$('cnt').textContent=count;upWall=performance.now();showState(true);beep('up');vib(60);}
+  else{
+    showState(false);const held=(performance.now()-upWall)/1000;
+    if(e.type==='cancel'){addLog(`#${count}  ${now}  取り消し`);count=Math.max(0,count-1);$('cnt').textContent=count;beep('cancel');}
+    else{addLog(`#${count}  ${now}  上げていた時間 ${held.toFixed(2)}s`);beep('down');}
+  }
+}
+
+// ---- 画面タップ：開始／判定の手動修正
+function onTap(){
+  if(!started){start();return;}
+  if(D.age<0.6)return;
+  const t=performance.now(),up=!D.state;
+  det.force(up,t);marks.push({t,type:up?'fix-up':'fix-down'});
+  const now=new Date().toLocaleTimeString('ja-JP');
+  if(up){count++;$('cnt').textContent=count;upWall=t;addLog(`#${count}  ${now}  タップで挙手に修正`);}
+  else addLog(`#${count}  ${now}  タップで下に修正`);
+  showState(up);flash();beep('fix');vib(30);link&&link.send(t);
+  toast(up?'タップで「挙手」に直しました':'タップで「下」に直しました');
+}
+$('stage').addEventListener('click',onTap);
+if(qs.has('test'))window.__phone={set(up){const t=performance.now();det.force(up,t);showState(up);link&&link.send(t);},get link(){return link},get state(){return D.state}};
+$('stage').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onTap();}});
+
+const r2=x=>x==null?'':Math.round(x*100)/100;
+function onMotion(e){
+  const a=e.acceleration,g=e.accelerationIncludingGravity,r=e.rotationRate;
+  if(!g||g.x==null)return;
+  const t=performance.now();
+  const acc=a&&a.x!=null?[a.x,a.y,a.z]:null,accG=[g.x,g.y,g.z],rot=r&&r.alpha!=null?[r.alpha,r.beta,r.gamma]:null;
+  events++;rec.push([Math.round(t),acc,accG,rot]);while(rec.length&&t-rec[0][0]>30000)rec.shift();
+  for(const ev of det.push(t,acc,accG,rot))onEvent(ev);
+}
+
+let meterVal=0,meterT=0,meterState=false,hz=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  if(!started)return;
+  if(now-lastHzT>1000){
+    hz=events?Math.round(events*1000/(now-lastHzT)):0;
+    $('dot').className='dot '+(hz>20?'on':'bad');$('stTxt').textContent=(hz>20?'作動中':'センサー待ち')+(link?(link.ok?(role?`・${ROLE}${link.seat?link.seat:''}`:'・待機'):'・PC未接続'):'');
+    if(events===0&&now-startT>2000&&!noSensorShown){noSensorShown=true;toast('センサーの値が届いていません。SafariやChromeで直接開いてください',true,6000)}
+    events=0;lastHzT=now;
+  }
+  if(D.hasLinear===false&&!linWarned&&now-startT>1500){linWarned=true;toast('この端末は判定の精度が落ちる可能性があります',true,5000)}
+  if(picked){$('hint').textContent='回答が終わると元に戻ります';}
+  else if(D.age<0.6){$('bigTxt').textContent='準備中';$('hint').textContent='スマホを動かさないでください';}
+  else if($('bigTxt').textContent==='準備中'){showState(D.state);$('hint').textContent='判定が違っていたらタップで切り替え';}
+  const raw=D.state?D.fall:D.rise;
+  if(D.state!==meterState){meterState=D.state;meterVal=0;}
+  meterVal=Math.max(raw,meterVal*Math.exp(-(now-(meterT||now))/600));meterT=now;
+  const full=det.o.th*(D.state?det.o.downRatio:1)*1.6;
+  $('fill').style.width=Math.max(0,Math.min(100,meterVal/full*100))+'%';
+  $('mk').style.left=(100/1.6)+'%';
+  $('dbg').textContent=`センサー ${hz}Hz\n動き ${D.burst?'勢いあり':(D.moving?'ゆっくり':'なし')}   上下の速さ ${(D.burst?D.burst.v:D.v).toFixed(2)} m/s\n${D.state?'下ろし量':'持ち上げ量'} ${Math.round(meterVal*100)} cm（しきい値 ${Math.round(det.o.th*(D.state?det.o.downRatio:1)*100)} cm）\n加速度（平滑後） ${D.linS.toFixed(2)} m/s²\n重力抜き加速度 ${D.hasLinear?'あり':'なし'}`;
+}
+requestAnimationFrame(frame);
+
+async function start(){
+  if(started||starting)return;starting=true;
+  initAudio();
+  try{
+    if(typeof DeviceMotionEvent==='undefined'){toast('このブラウザはモーションセンサーに対応していません。スマホで開いてください',true,5000);return}
+    if(typeof DeviceMotionEvent.requestPermission==='function'){
+      try{const r=await DeviceMotionEvent.requestPermission();if(r!=='granted'){toast('センサーが許可されませんでした。ページを開き直して「許可」を選んでください',true,6000);return}}
+      catch(err){toast('センサーの許可を求められませんでした。SafariやChromeで直接開いてください',true,6000);return}
+    }
+    window.addEventListener('devicemotion',onMotion);
+    started=true;startT=performance.now();lastHzT=startT;
+    try{if(navigator.wakeLock)await navigator.wakeLock.request('screen')}catch(e){}
+    $('copyBtn').disabled=false;$('poseDown').disabled=false;$('poseUp').disabled=false;
+    $('countBox').hidden=false;$('meter').hidden=false;
+    $('stage').classList.remove('idle');$('bigTxt').textContent='準備中';
+    if(link){if(legacy&&!link.seat)$('seatSheet').hidden=false;if(!legacy&&!myName)$('nameSheet').hidden=false;}
+  }finally{starting=false}
+}
+$('reset').onclick=()=>{count=0;$('cnt').textContent='0';$('log').innerHTML='<li>まだ挙手はありません</li>'};
+
+// ---- 設定パネル
+$('openSet').onclick=()=>{$('sheet').hidden=false};
+$('closeSet').onclick=()=>{$('sheet').hidden=true};
+$('sheet').addEventListener('click',e=>{if(e.target===$('sheet'))$('sheet').hidden=true});
+
+// ---- 向き（姿勢）
+function poseUI(){
+  for(const k of ['down','up']){const b=$(k==='down'?'poseDown':'poseUp');const has=!!det.P[k]&&det.P.manual;b.classList.toggle('done',has);b.querySelector('small').textContent=has?'手動登録済み（押すと取り直し）':'手動で登録';}
+  const i=$('poseInfo'),src=det.P.manual?'手動登録':'自動';
+  if(det.P.down&&det.P.up){const s=Math.round(det.P.sep);i.textContent=s>=det.o.poseMinSep?`向きを覚えています（${src}、角度差 ${s}°）。ゆっくりした動きにも対応します。`:`上げ下げで向きがあまり変わらない持ち方です（角度差 ${s}°）。動きだけで判定します。`;}
+  else if(det.P.down||det.P.up)i.textContent=`${det.P.up?'上げた':'下げた'}向きだけ覚えました。もう片方も1回はっきり動かしてください。`;
+  else i.textContent='まだ覚えていません。1回はっきり上げて下ろしてください。';
+}
+const savedPose=store.get('kyoshu3-pose');
+if(savedPose&&savedPose.down&&savedPose.up){det.setPose('down',savedPose.down);det.setPose('up',savedPose.up);}
+poseUI();
+let posing=false;
+function capturePose(kind){
+  if(posing)return;posing=true;
+  const sm=$(kind==='down'?'poseDown':'poseUp').querySelector('small');
+  let n=3;sm.textContent=`${n}秒後に記録`;beep('tick');
+  const iv=setInterval(()=>{n--;if(n>0){sm.textContent=`${n}秒後に記録`;beep('tick');return}
+    clearInterval(iv);sm.textContent='記録中…そのまま';beep('rec');
+    const acc=[];const tk=setInterval(()=>{if(D.g)acc.push(D.g.slice())},30);
+    setTimeout(()=>{clearInterval(tk);posing=false;
+      if(!acc.length){sm.textContent='値が取れませんでした';return}
+      det.setPose(kind,[0,1,2].map(i=>acc.reduce((s,v)=>s+v[i],0)/acc.length));store.set('kyoshu3-pose',{down:det.P.down,up:det.P.up});beep('ok');poseUI();
+    },1000);
+  },1000);
+}
+$('poseDown').onclick=()=>capturePose('down');
+$('poseUp').onclick=()=>capturePose('up');
+$('poseClear').onclick=()=>{det.P.down=det.P.up=null;det.P.sep=0;det.P.level=null;det.P.manual=false;det.P.auto=false;store.set('kyoshu3-pose',null);poseUI();};
+setInterval(()=>{if(!posing)poseUI()},1000);
+
+
+// ---- 会場PCとの接続（URLに ?pc= が付いているときだけ）
+const pcId=qs.get('pc'),legacy=qs.has('r');let role=legacy?(qs.get('r')==='j'?'j':'p'):null;
+const ROLES={p:legacy?'回答者':'大喜利',j:legacy?'審査員':'審査'};let ROLE=role?ROLES[role]:'参加者';
+// 端末ID（この会場PC用に1回だけ作る）：つなぎ直しても同じ人として扱ってもらうため
+let devId=store.get('kyoshu-dev-'+pcId);if(!devId){devId=Math.random().toString(36).slice(2,10);store.set('kyoshu-dev-'+pcId,devId);}
+let myName=store.get('kyoshu-name')||'';
+function buildSeatGrid(n){const g=$('seatGrid');g.innerHTML='';for(let i=1;i<=n;i++){const b=document.createElement('button');b.textContent=i;b.onclick=()=>{link.setSeat(i);$('seatSheet').hidden=true;};g.appendChild(b);}}
+if(pcId){
+  $('pcSec').hidden=false;
+  link={ok:false,role,seat:+(store.get('kyoshu-seat-'+pcId+role)||0)||null,conn:null,peer:null,n:8,
+    // et: 上げ下げが起きた瞬間（このスマホの時計）。PC側で時計の差を補正して順番を決める
+    send(et){if(!(this.conn&&this.conn.open))return;const m={up:!!D.state,et:et==null?null:Math.round(et*10)/10,pt:Math.round(performance.now()*10)/10};
+      if(legacy){if(!this.seat)return;m.role=role;m.seat=this.seat;}else{if(!myName)return;m.id=devId;m.name=myName;}
+      try{this.conn.send(m)}catch(e){}},
+    setSeat(i){this.seat=i;store.set('kyoshu-seat-'+pcId+role,i);this.ok=false;this.info();this.send();},
+    info(){$('pcInfo').textContent=legacy?(this.ok?`接続中（${ROLE} ${this.seat}番）`:(this.seat?`接続を待っています（${ROLE} ${this.seat}番）`:'番号が未選択です')):(this.ok?(role?`接続中：${myName}（${ROLE} ${this.seat}番）`:`接続中：${myName}（役割の割り当て待ち）`):(myName?`接続を待っています（${myName}）`:'名前が未入力です'));}
+  };
+  if(legacy){document.querySelector('#seatSheet h2').textContent=`${ROLE}の番号を選んでください`;buildSeatGrid(8);}
+  else{$('seatChange').hidden=true;$('nameChange').hidden=false;$('nameIn').value=myName;}
+  document.title=`挙手センサー ${ROLE}`;
+  $('seatChange').onclick=()=>{$('sheet').hidden=true;$('seatSheet').hidden=false;};
+  $('nameChange').onclick=()=>{$('sheet').hidden=true;$('nameSheet').hidden=false;$('nameIn').focus();};
+  $('nameOk').onclick=()=>{const v=$('nameIn').value.trim();if(!v){$('nameIn').focus();return}myName=v;store.set('kyoshu-name',v);$('nameSheet').hidden=true;link.info();link.send();};
+  $('nameIn').addEventListener('keydown',e=>{if(e.key==='Enter')$('nameOk').click()});
+  const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js';
+  s.onload=()=>connect();s.onerror=()=>toast('会場PCにつなぐ部品を読み込めませんでした',true,5000);document.head.appendChild(s);
+  function connect(){
+    if(!link.peer||link.peer.destroyed){link.peer=new Peer();link.peer.on('error',()=>{});link.peer.on('open',()=>open());}else open();
+    function open(){
+      const c=link.peer.connect(pcId,{reliable:true});link.conn=c;
+      c.on('open',()=>{link.send();});
+      c.on('data',m=>{
+        if(!m||typeof m!=='object')return;
+        if(m.type==='hello'){link.ok=true;link.seat=m.seat;link.n=m.n;if(legacy)buildSeatGrid(m.n);link.info();toast(legacy?`会場PCにつながりました（${ROLE} ${m.seat}番）`:'会場PCにつながりました');}
+        if(m.type==='assign'){const was=role;role=m.role||null;ROLE=role?ROLES[role]:'参加者';link.seat=m.seat||null;link.ok=true;if(!role){setPicked(false);qpos=0;}link.info();showState(D.state);if(role==='j')qpos=0;
+          if(was!==role)toast(role?`運営があなたを「${ROLE}」にしました`:'グループから外れました（待機）',false,3500);}
+        if(m.type==='ping'){try{c.send({type:'pong',t:m.t,pt:Math.round(performance.now()*10)/10})}catch(e){}}
+        if(m.type==='picked'){setPicked(true);}
+        if(m.type==='done'){setPicked(false);}
+        if(m.type==='queue'){qpos=m.pos|0;if(!picked)showState(D.state);}
+        if(m.type==='seats'){link.n=m.n;buildSeatGrid(m.n);link.ok=false;link.info();$('seatSheet').hidden=false;}
+        if(m.type==='force'&&typeof m.up==='boolean'&&started&&m.up!==D.state){det.force(m.up,performance.now());if(m.up){count++;$('cnt').textContent=count;upWall=performance.now();}showState(m.up);flash();toast(m.up?'会場PCで「挙手」に直されました':'会場PCで「下」に直されました');}
+      });
+      c.on('close',()=>{link.ok=false;link.info();setTimeout(connect,2000);});
+      c.on('error',()=>{});
+      setTimeout(()=>{if(!c.open){try{c.close()}catch(e){};if(link.conn===c){link.ok=false;link.info();setTimeout(connect,1000);}}},6000);
+    }
+  }
+  setInterval(()=>link.send(),1000);
+  link.info();
+}
+
+// ---- データのコピー
+function dump(){
+  const t0=rec.length?rec[0][0]:0,f=v=>v?v.map(r2).join(' '):'-';
+  const lines=[`kyoshu v4 seat=${link?link.seat:'-'} th=${Math.round(det.o.th*100)} pose=${det.P.down&&det.P.up?JSON.stringify({m:!!det.P.manual,d:det.P.down.map(r2),u:det.P.up.map(r2)}):'-'} ua=${navigator.userAgent}`,'t|acc|accG|rot'];
+  for(const r of rec)lines.push(`${r[0]-t0}|${f(r[1])}|${f(r[2])}|${f(r[3])}`);
+  lines.push('events: '+marks.filter(m=>m.t>=t0).map(m=>m.type+'@'+Math.round(m.t-t0)).join(' '));
+  return lines.join('\n');
+}
+$('copyBtn').onclick=()=>{
+  const txt=dump(),ta=$('copyArea');
+  const fallback=()=>{ta.hidden=false;ta.value=txt;ta.focus();ta.select();$('copyBtn').textContent='下の欄を全選択してコピーしてください'};
+  try{navigator.clipboard.writeText(txt).then(()=>{$('copyBtn').textContent=`コピーしました（${rec.length}件）`;setTimeout(()=>$('copyBtn').textContent='直近30秒のデータをコピー',2500)},fallback)}catch(e){fallback()}
+};
+})();
+</script>
+
+</body>
+</html>

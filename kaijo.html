@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>挙手センサー 会場</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#0e0f15; --panel:#191b25; --panel2:#222534; --line:#2c2f3d; --ink:#eceef6; --mute:#8d92a8;
+  --up:#ffcf33; --upInk:#1a1400; --down:#2e3346; --ok:#5fd39a; --okInk:#06231a; --warn:#ff9a3d; --bad:#ff6a6a;
+  --disp:"Dela Gothic One","Hiragino Sans","Noto Sans JP",sans-serif;
+  --body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink)}
+body{font-family:var(--body);font-size:15px;line-height:1.5;display:flex;flex-direction:column;padding:12px 16px;box-sizing:border-box;gap:12px}
+header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+header h1{font-family:var(--disp);font-weight:400;font-size:18px;margin:0 8px 0 0;letter-spacing:.03em}
+.sp{flex:1}
+button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:8px 14px;background:var(--panel2);color:var(--ink);cursor:pointer}
+button:focus-visible{outline:2px solid var(--up);outline-offset:2px}
+button.primary{background:var(--up);color:var(--upInk)}
+button.go{background:var(--ok);color:var(--okInk);font-size:18px;padding:12px 22px}
+.pill{font-size:12px;color:var(--mute);display:inline-flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mute)} .dot.on{background:var(--ok)} .dot.bad{background:var(--bad)}
+kbd{font-family:var(--mono);font-size:11px;background:#0006;border:1px solid var(--line);border-radius:5px;padding:0 5px}
+
+main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,1fr);gap:14px}
+@media (max-width:900px){main{grid-template-columns:1fr;grid-auto-rows:auto} body{overflow:auto;height:auto}}
+.col{display:flex;flex-direction:column;gap:12px;min-height:0}
+.box{background:var(--panel);border-radius:16px;padding:14px 18px;position:relative}
+.box h2{margin:0 0 8px;font-size:12px;color:var(--mute);letter-spacing:.08em;font-weight:700}
+
+/* 回答中 */
+.now{display:flex;align-items:center;gap:18px;min-height:96px}
+.now .lbl{font-size:13px;color:var(--mute)}
+.now .who{font-family:var(--disp);font-size:clamp(36px,5vw,64px);line-height:1}
+.now .who small{font-size:.45em;color:var(--mute);margin-left:10px}
+.now.empty .who{color:var(--mute);font-size:24px}
+.now .ctl{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* 挙手順 */
+.queue{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.qi{display:flex;align-items:center;gap:14px;background:var(--down);border-radius:12px;padding:10px 14px;cursor:pointer;border:2px solid transparent}
+.qi:hover{border-color:var(--ink)}
+.qi .rank{font-family:var(--disp);font-size:30px;width:1.6em;color:var(--up)}
+.qi .name{font-family:var(--disp);font-size:26px;flex:1}
+.qi .dt{font-family:var(--mono);font-size:12px;color:var(--mute)}
+.qi.tie .dt{color:var(--warn);font-weight:700}
+.qi .tot{font-size:12px;color:var(--mute)}
+.queue .none{color:var(--mute);padding:20px;text-align:center}
+
+/* 審査員 */
+.score{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.score .n{font-family:var(--disp);font-size:clamp(44px,6vw,88px);line-height:1}
+.score .u{color:var(--mute)}
+.score .pts{font-family:var(--disp);font-size:clamp(26px,3.6vw,48px);color:var(--up)}
+.score .last{width:100%;font-size:13px;color:var(--mute);min-height:1.4em}
+.judges{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px}
+.j{background:var(--down);border-radius:12px;padding:8px 10px;cursor:pointer;user-select:none;-webkit-user-select:none;border:2px solid transparent;display:flex;flex-direction:column;gap:2px}
+.j.up{background:var(--up);color:var(--upInk)}
+.j.off{background:var(--panel);color:var(--mute)}
+.j.manual{border-color:var(--ink);border-style:dashed}
+.j .no{font-family:var(--disp);font-size:18px}
+.j .st{font-size:11px;font-weight:700}
+
+/* 得点表 */
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{padding:4px 6px;text-align:left;border-bottom:1px solid var(--line)}
+th{color:var(--mute);font-weight:700;font-size:11px}
+td.num,th.num{text-align:right;font-family:var(--mono)}
+.tbl{max-height:30vh;overflow:auto}
+
+.sheet{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:10;padding:16px}
+[hidden]{display:none!important}
+.panel{background:var(--bg);border:1px solid var(--line);border-radius:18px;max-width:640px;width:100%;max-height:90vh;overflow:auto;padding:18px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px}
+.panel header{justify-content:space-between}
+.panel h2{margin:0;font-size:17px}
+section{background:var(--panel);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+section h3{margin:0;font-size:12px;color:var(--mute);letter-spacing:.08em}
+.note{font-size:12px;color:var(--mute);margin:0}
+label.set{display:flex;justify-content:space-between;gap:10px;font-size:13px;align-items:center}
+select,input[type=number]{font:inherit;background:var(--panel2);color:var(--ink);border:0;border-radius:8px;padding:6px 8px}
+textarea{width:100%;box-sizing:border-box;min-height:120px;background:var(--panel2);color:var(--ink);border:0;border-radius:8px;font:inherit;font-size:13px;padding:8px}
+.qrs{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:600px){.qrs{grid-template-columns:1fr}}
+.qrs .one{background:var(--panel);border-radius:14px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.qrs .one h4{margin:0;font-family:var(--disp);font-weight:400;font-size:18px}
+.qrs .qr{background:#fff;padding:8px;border-radius:10px;line-height:0}
+.qrs .qr svg{width:200px;height:200px}
+.code{font-family:var(--mono);font-size:11px;word-break:break-all;color:var(--mute)}
+.toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#000d;color:#fff;padding:9px 16px;border-radius:999px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20;white-space:nowrap}
+.toast.show{opacity:1} .toast.warn{background:#5a1f12f0}
+
+/* 参加者 */
+.people{display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow:auto}
+.pe{display:flex;align-items:center;gap:10px;background:var(--panel2);border-radius:10px;padding:6px 10px}
+.pe .nm{flex:1;font-weight:700}
+.pe .nm small{color:var(--mute);font-weight:400;margin-left:6px}
+.pe.offl{opacity:.5}
+.pe .seg button{padding:4px 10px;font-size:12px}
+.pe .seg button[aria-pressed="true"]{background:var(--up);color:var(--upInk)}
+.pe .x{padding:4px 8px;font-size:12px;color:var(--mute)}
+.tabs{display:flex;gap:6px;margin-bottom:8px}
+
+.groups{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:900px){.groups{grid-template-columns:1fr}}
+.grp{background:var(--panel);border-radius:18px;padding:16px 18px;display:flex;flex-direction:column;min-height:0}
+.grp .hd{display:flex;align-items:baseline;gap:12px;margin-bottom:10px}
+.grp .ttl{font-family:var(--disp);font-size:22px}
+.grp .cnt{font-family:var(--disp);font-size:clamp(48px,7vw,96px);line-height:1;margin-left:auto}
+.grp .cnt small{font-size:16px;color:var(--mute);font-family:var(--body);margin-left:4px}
+.grp .mem{font-size:12px;color:var(--mute)}
+.grp.j .cnt{color:var(--up)}
+.list{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.li{display:flex;align-items:center;gap:14px;background:var(--down);border-radius:12px;padding:10px 14px}
+.li .rank{font-family:var(--disp);font-size:28px;width:1.5em;color:var(--up)}
+.li .name{font-family:var(--disp);font-size:26px;flex:1}
+.li .dt{font-family:var(--mono);font-size:12px;color:var(--mute)}
+.li.tie .dt{color:var(--warn);font-weight:700}
+.list .none{color:var(--mute);padding:24px;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>挙手センサー 会場</h1>
+  <span class="sp"></span>
+  <span class="pill">接続 <b id="nAll">0</b>台（未割り当て <b id="nwTxt">0</b>）</span>
+  <span class="pill"><span class="dot" id="netDot"></span><span id="netTxt">接続の準備中</span></span>
+  <button id="peopleBtn">参加者・グループ分け</button>
+  <button id="qrBtn">スマホをつなぐ</button>
+  <button id="setBtn">設定</button>
+</header>
+
+<main style="display:flex;flex-direction:column">
+  <div class="groups">
+    <div class="grp p">
+      <div class="hd"><span class="ttl">大喜利</span><span class="mem" id="memP"></span><span class="cnt"><span id="cntP">0</span><small>人 挙手中</small></span></div>
+      <div class="list" id="listP"><div class="none">手が上がると、上げた順に並びます</div></div>
+    </div>
+    <div class="grp j">
+      <div class="hd"><span class="ttl">審査</span><span class="mem" id="memJ"></span><span class="cnt"><span id="cntJ">0</span><small>本</small></span></div>
+      <div class="list" id="listJ"><div class="none">手が上がると、上げた順に並びます</div></div>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast" role="status"></div>
+
+<div class="sheet" id="qrSheet" hidden>
+  <div class="panel" role="dialog" aria-label="スマホをつなぐ">
+    <header><h2>スマホをつなぐ</h2><button id="qrClose">閉じる</button></header>
+    <p class="note">全員このQRを読み取り、開いたページで画面をタップして開始、名前を入れてもらいます。どちらのグループかは「参加者・グループ分け」で運営が決めます。スマホは手に持ったまま手を上げてください。</p>
+    <div class="qrs" style="grid-template-columns:1fr">
+      <div class="one"><div class="qr" id="qrP"></div><div class="code" id="urlP">準備中…</div><button data-copy="urlP">URLをコピー</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="peopleSheet" hidden>
+  <div class="panel" role="dialog" aria-label="参加者とグループ">
+    <header><h2>参加者とグループ分け</h2><button id="peopleClose">閉じる</button></header>
+    <p class="note">つながったスマホが名前つきで並びます。グループはいつでも切り替えられます（本人のスマホにも表示されます）。審査が0人でも使えます。</p>
+    <div class="tabs"><button id="allP">全員を大喜利に</button><button id="allW">全員を未割り当てに</button></div>
+    <div class="people" id="people"><div class="none">まだ誰もつながっていません</div></div>
+  </div>
+</div>
+
+<div class="sheet" id="setSheet" hidden>
+  <div class="panel" role="dialog" aria-label="設定">
+    <header><h2>設定</h2><button id="setClose">閉じる</button></header>
+    <section>
+      <h3>表示</h3>
+      <label class="set">同時とみなす差（ミリ秒）<input type="number" id="tieMs" min="0" max="500" step="10" value="80"></label>
+      <p class="note">この差より近い2人は「同時」と表示します（スマホの通信のゆらぎぶん）。</p>
+    </section>
+    <section>
+      <h3>その他</h3>
+      <button id="forgetAll">切れている人を一覧から消す</button>
+      <button id="resetRoles">全員の割り当てを消す</button>
+    </section>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.js"></script>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const now=()=>performance.now();
+const TEST=new URLSearchParams(location.search).has('test');
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const GN={p:'大喜利',j:'審査'};
+
+const cfg=Object.assign({tieMs:80},store.get('kyoshu-simple')||{});
+function save(){store.set('kyoshu-simple',cfg)}
+$('tieMs').value=cfg.tieMs;$('tieMs').onchange=()=>{cfg.tieMs=+$('tieMs').value||0;save();render();};
+for(const [b,sh] of [['setBtn','setSheet'],['qrBtn','qrSheet'],['peopleBtn','peopleSheet']])$(b).onclick=()=>{$(sh).hidden=false;renderPeople();};
+for(const [b,sh] of [['setClose','setSheet'],['qrClose','qrSheet'],['peopleClose','peopleSheet']])$(b).onclick=()=>{$(sh).hidden=true};
+for(const sh of ['setSheet','qrSheet','peopleSheet'])$(sh).addEventListener('click',e=>{if(e.target===$(sh))$(sh).hidden=true});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')for(const id of ['setSheet','qrSheet','peopleSheet'])$(id).hidden=true;});
+let toastT=0;function toast(t,warn){const el=$('toast');el.textContent=t;el.classList.toggle('warn',!!warn);el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2400);}
+
+// ---------- 参加者（端末ごと） dev: {id,name,conn,role,up,upAt,off,rtt,order}
+const devs=new Map();const saved=store.get('kyoshu-simple-devs')||{};let orderSeq=0;
+function dev(id){let d=devs.get(id);if(!d){const sv=saved[id]||{};d={id,name:sv.name||'',conn:null,role:sv.role||null,up:false,upAt:0,off:null,rtt:1e9,order:sv.order??(orderSeq++)};orderSeq=Math.max(orderSeq,d.order+1);devs.set(id,d);}return d;}
+for(const id of Object.keys(saved))dev(id);
+function persist(){const o={};for(const d of devs.values())o[d.id]={name:d.name,role:d.role,order:d.order};store.set('kyoshu-simple-devs',o);}
+function send(x,m){if(x&&x.conn)try{x.conn.send(m)}catch(e){}}
+function sendAssign(d){send(d,{type:'assign',role:d.role,seat:0});}
+function setRole(d,r){if(d.role===r)return;d.role=r;persist();sendAssign(d);renderPeople();render();}
+function renderPeople(){
+  const box=$('people');const all=[...devs.values()].sort((a,b)=>(a.conn?0:1)-(b.conn?0:1)||a.order-b.order);
+  box.innerHTML=all.length?'':'<div class="none">まだ誰もつながっていません</div>';
+  for(const d of all){
+    const el=document.createElement('div');el.className='pe'+(d.conn?'':' offl');
+    el.innerHTML=`<span class="nm">${esc(d.name||'（名前なし）')}<small>${d.conn?'':'切断中 '}${d.role?GN[d.role]:''}</small></span>
+      <span class="seg"><button data-r="p" aria-pressed="${d.role==='p'}">大喜利</button><button data-r="j" aria-pressed="${d.role==='j'}">審査</button><button data-r="" aria-pressed="${!d.role}">なし</button></span>
+      <button class="x" title="一覧から消す">✕</button>`;
+    el.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>setRole(d,b.dataset.r||null));
+    el.querySelector('.x').onclick=()=>{if(d.conn){toast('つながっている人は消せません',true);return}devs.delete(d.id);persist();renderPeople();render();};
+    box.appendChild(el);
+  }
+}
+$('allP').onclick=()=>{for(const d of devs.values())if(d.conn)setRole(d,'p');};
+$('allW').onclick=()=>{for(const d of devs.values())setRole(d,null);};
+$('forgetAll').onclick=()=>{for(const d of [...devs.values()])if(!d.conn)devs.delete(d.id);persist();renderPeople();render();};
+$('resetRoles').onclick=()=>{for(const d of devs.values())setRole(d,null);toast('割り当てを消しました');};
+
+// ---------- 表示：グループごとに、上げた順
+const raised=r=>[...devs.values()].filter(d=>d.role===r&&d.conn&&d.up).sort((a,b)=>a.upAt-b.upAt);
+function render(){
+  const t=now();
+  for(const r of ['p','j']){
+    const q=raised(r),box=$('list'+r.toUpperCase());box.innerHTML='';
+    const mem=[...devs.values()].filter(d=>d.role===r&&d.conn).length;
+    $('mem'+r.toUpperCase()).textContent=mem?`${mem}人`:'（だれもいません）';
+    $('cnt'+r.toUpperCase()).textContent=q.length;
+    if(!q.length){box.innerHTML='<div class="none">手が上がると、上げた順に並びます</div>';continue}
+    q.forEach((d,k)=>{
+      const el=document.createElement('div');el.className='li';
+      const dt=k?d.upAt-q[k-1].upAt:0,tie=k&&dt<cfg.tieMs;if(tie)el.classList.add('tie');
+      el.innerHTML=`<span class="rank">${k+1}</span><span class="name">${esc(d.name)}</span><span class="dt">${k?(tie?'同時':`+${(dt/1000).toFixed(2)}s`):`${((t-d.upAt)/1000).toFixed(0)}s前`}</span>`;
+      box.appendChild(el);
+    });
+  }
+  const all=[...devs.values()].filter(d=>d.conn);
+  $('nAll').textContent=all.length;$('nwTxt').textContent=all.filter(d=>!d.role).length;
+  // 待ち順をスマホへ
+  for(const r of ['p','j'])raised(r).forEach((d,k)=>{if(d.qpos!==k+1){d.qpos=k+1;send(d,{type:'queue',pos:r==='p'?k+1:0});}});
+  for(const d of devs.values())if(!d.up&&d.qpos){d.qpos=0;send(d,{type:'queue',pos:0});}
+}
+setInterval(render,1000);
+
+// ---------- スマホとの接続
+let peer=null,peerId=store.get('kyoshu-kaijo-id');
+function joinURL(id){const u=new URL('index.html',location.href);u.search=`?pc=${encodeURIComponent(id)}`;return u.href;}
+function showQR(id){const url=joinURL(id);$('urlP').textContent=url;try{const c=qrcode(0,'M');c.addData(url);c.make();$('qrP').innerHTML=c.createSvgTag({cellSize:5,margin:2,scalable:true});}catch(e){$('qrP').textContent='QRを作れませんでした'}}
+document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=()=>{try{navigator.clipboard.writeText($(b.dataset.copy).textContent).then(()=>toast('URLをコピーしました'))}catch(e){}});
+function startPeer(retry){
+  if(typeof Peer==='undefined'){$('netTxt').textContent='接続の部品を読み込めませんでした';$('netDot').className='dot bad';return}
+  if(!peerId||retry){peerId='kaijo-'+Math.random().toString(36).slice(2,8);store.set('kyoshu-kaijo-id',peerId);}
+  peer=new Peer(peerId);
+  peer.on('open',id=>{showQR(id);$('netTxt').textContent='接続OK';$('netDot').className='dot on';});
+  peer.on('error',e=>{if(e.type==='unavailable-id'){peer.destroy();setTimeout(()=>startPeer(true),300);return}$('netDot').className='dot bad';toast('スマホとの接続でエラー：'+e.type,true);});
+  peer.on('disconnected',()=>{setTimeout(()=>{try{peer.reconnect()}catch(e){}},1500)});
+  peer.on('connection',conn=>{
+    let x=null,pingT=null;
+    function ping(){if(!conn.open)return;try{conn.send({type:'ping',t:now()})}catch(e){}}
+    conn.on('data',m=>{
+      if(!m||typeof m!=='object')return;
+      if(m.type==='pong'){const t1=now(),rtt=t1-m.t;if(x&&rtt<x.rtt){x.rtt=rtt;x.off=m.pt-(m.t+rtt/2);}return;}  // スマホ時計 − PC時計
+      if(!m.id)return;
+      if(!x||x.id!==m.id){
+        if(x&&x.conn===conn){x.conn=null;x.up=false;}
+        x=dev(m.id);if(x.conn&&x.conn!==conn)try{x.conn.close()}catch(e){}
+        x.conn=conn;x.off=null;x.rtt=1e9;x.up=false;x.name=m.name||x.name;
+        try{conn.send({type:'hello',seat:0,n:0})}catch(e){}
+        sendAssign(x);persist();
+        toast(`${x.name} がつながりました${x.role?`（${GN[x.role]}）`:'（グループを決めてください）'}`,!x.role);
+        clearInterval(pingT);ping();pingT=setInterval(ping,700);setTimeout(()=>{clearInterval(pingT);pingT=setInterval(ping,15000)},6000);
+        renderPeople();
+      }
+      if(m.name&&m.name!==x.name){x.name=m.name;persist();renderPeople();}
+      if(typeof m.up==='boolean'){
+        const t=now();
+        // 上げた時刻：スマホの時計で来ていれば補正して使う（通信の遅れに左右されない）
+        if(m.up&&!x.up){let at=t;if(m.et!=null&&x.off!=null){const c=m.et-x.off;if(c<=t+50&&c>t-5000)at=c;}x.upAt=at;}
+        x.up=m.up;render();
+      }
+    });
+    conn.on('close',()=>{clearInterval(pingT);if(x&&x.conn===conn){x.conn=null;x.up=false;toast(`${x.name} のスマホが切れました`,true);renderPeople();render();}});
+  });
+}
+render();startPeer(false);
+
+if(TEST)window.__kaijo={devs,cfg,setRole,raised,
+  fake(id,name,role,up,et){const x=dev(id);x.conn=x.conn||{open:true,send(){},close(){}};if(!x.name)x.name=name;if(role!==undefined&&x.role!==role)setRole(x,role);const t=now();if(up&&!x.up)x.upAt=et!=null?et:t;x.up=up;render();return x;}};
+})();
+</script>
+</body>
+</html>
