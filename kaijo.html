@@ -5,20 +5,20 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>挙手センサー 会場</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
 :root{
   color-scheme:dark;
   --bg:#0e0f15; --panel:#191b25; --panel2:#222534; --line:#2c2f3d; --ink:#eceef6; --mute:#8d92a8;
   --up:#ffcf33; --upInk:#1a1400; --down:#2e3346; --ok:#5fd39a; --okInk:#06231a; --warn:#ff9a3d; --bad:#ff6a6a;
-  --disp:"Dela Gothic One","Hiragino Sans","Noto Sans JP",sans-serif;
+  --disp:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",sans-serif;
   --body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",sans-serif;
   --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
 }
 html,body{height:100%;margin:0;background:var(--bg);color:var(--ink)}
 body{font-family:var(--body);font-size:15px;line-height:1.5;display:flex;flex-direction:column;padding:12px 16px;box-sizing:border-box;gap:12px}
 header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-header h1{font-family:var(--disp);font-weight:400;font-size:18px;margin:0 8px 0 0;letter-spacing:.03em}
+header h1{font-family:var(--disp);font-weight:900;font-size:18px;margin:0 8px 0 0;letter-spacing:.02em}
 .sp{flex:1}
 button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:8px 14px;background:var(--panel2);color:var(--ink);cursor:pointer}
 button:focus-visible{outline:2px solid var(--up);outline-offset:2px}
@@ -37,7 +37,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.2fr) minm
 /* 回答中 */
 .now{display:flex;align-items:center;gap:18px;min-height:96px}
 .now .lbl{font-size:13px;color:var(--mute)}
-.now .who{font-family:var(--disp);font-size:clamp(36px,5vw,64px);line-height:1}
+.now .who{font-family:var(--disp);font-weight:900;font-size:clamp(36px,5vw,64px);line-height:1}
 .now .who small{font-size:.45em;color:var(--mute);margin-left:10px}
 .now.empty .who{color:var(--mute);font-size:24px}
 .now .ctl{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -46,8 +46,8 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.2fr) minm
 .queue{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px}
 .qi{display:flex;align-items:center;gap:14px;background:var(--down);border-radius:12px;padding:10px 14px;cursor:pointer;border:2px solid transparent}
 .qi:hover{border-color:var(--ink)}
-.qi .rank{font-family:var(--disp);font-size:30px;width:1.6em;color:var(--up)}
-.qi .name{font-family:var(--disp);font-size:26px;flex:1}
+.qi .rank{font-family:var(--disp);font-weight:900;font-size:30px;width:1.6em;color:var(--up)}
+.qi .name{font-family:var(--disp);font-weight:900;font-size:26px;flex:1}
 .qi .dt{font-family:var(--mono);font-size:12px;color:var(--mute)}
 .qi.tie .dt{color:var(--warn);font-weight:700}
 .qi .tot{font-size:12px;color:var(--mute)}
@@ -55,16 +55,16 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.2fr) minm
 
 /* 審査員 */
 .score{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
-.score .n{font-family:var(--disp);font-size:clamp(44px,6vw,88px);line-height:1}
+.score .n{font-family:var(--disp);font-weight:900;font-size:clamp(44px,6vw,88px);line-height:1}
 .score .u{color:var(--mute)}
-.score .pts{font-family:var(--disp);font-size:clamp(26px,3.6vw,48px);color:var(--up)}
+.score .pts{font-family:var(--disp);font-weight:900;font-size:clamp(26px,3.6vw,48px);color:var(--up)}
 .score .last{width:100%;font-size:13px;color:var(--mute);min-height:1.4em}
 .judges{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px}
 .j{background:var(--down);border-radius:12px;padding:8px 10px;cursor:pointer;user-select:none;-webkit-user-select:none;border:2px solid transparent;display:flex;flex-direction:column;gap:2px}
 .j.up{background:var(--up);color:var(--upInk)}
 .j.off{background:var(--panel);color:var(--mute)}
 .j.manual{border-color:var(--ink);border-style:dashed}
-.j .no{font-family:var(--disp);font-size:18px}
+.j .no{font-family:var(--disp);font-weight:900;font-size:18px}
 .j .st{font-size:11px;font-weight:700}
 
 /* 得点表 */
@@ -88,7 +88,7 @@ textarea{width:100%;box-sizing:border-box;min-height:120px;background:var(--pane
 .qrs{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media (max-width:600px){.qrs{grid-template-columns:1fr}}
 .qrs .one{background:var(--panel);border-radius:14px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
-.qrs .one h4{margin:0;font-family:var(--disp);font-weight:400;font-size:18px}
+.qrs .one h4{margin:0;font-family:var(--disp);font-weight:900;font-size:18px}
 .qrs .qr{background:#fff;padding:8px;border-radius:10px;line-height:0}
 .qrs .qr svg{width:200px;height:200px}
 .code{font-family:var(--mono);font-size:11px;word-break:break-all;color:var(--mute)}
@@ -110,15 +110,15 @@ textarea{width:100%;box-sizing:border-box;min-height:120px;background:var(--pane
 @media (max-width:900px){.groups{grid-template-columns:1fr}}
 .grp{background:var(--panel);border-radius:18px;padding:16px 18px;display:flex;flex-direction:column;min-height:0}
 .grp .hd{display:flex;align-items:baseline;gap:12px;margin-bottom:10px}
-.grp .ttl{font-family:var(--disp);font-size:22px}
-.grp .cnt{font-family:var(--disp);font-size:clamp(48px,7vw,96px);line-height:1;margin-left:auto}
+.grp .ttl{font-family:var(--disp);font-weight:900;font-size:22px}
+.grp .cnt{font-family:var(--disp);font-weight:900;font-size:clamp(48px,7vw,96px);line-height:1;margin-left:auto}
 .grp .cnt small{font-size:16px;color:var(--mute);font-family:var(--body);margin-left:4px}
 .grp .mem{font-size:12px;color:var(--mute)}
 .grp.j .cnt{color:var(--up)}
 .list{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px}
 .li{display:flex;align-items:center;gap:14px;background:var(--down);border-radius:12px;padding:10px 14px}
-.li .rank{font-family:var(--disp);font-size:28px;width:1.5em;color:var(--up)}
-.li .name{font-family:var(--disp);font-size:26px;flex:1}
+.li .rank{font-family:var(--disp);font-weight:900;font-size:28px;width:1.5em;color:var(--up)}
+.li .name{font-family:var(--disp);font-weight:900;font-size:26px;flex:1}
 .li .dt{font-family:var(--mono);font-size:12px;color:var(--mute)}
 .li.tie .dt{color:var(--warn);font-weight:700}
 .list .none{color:var(--mute);padding:24px;text-align:center}
@@ -218,7 +218,7 @@ function renderPeople(){
   box.innerHTML=all.length?'':'<div class="none">まだ誰もつながっていません</div>';
   for(const d of all){
     const el=document.createElement('div');el.className='pe'+(d.conn?'':' offl');
-    el.innerHTML=`<span class="nm">${esc(d.name||'（名前なし）')}<small>${d.conn?'':'切断中 '}${d.role?GN[d.role]:''}</small></span>
+    el.innerHTML=`<span class="nm">${esc(d.name||'（名前なし）')}<small>${d.conn?(d.rtt<1e9?`往復 ${Math.round(d.rtt)}ms${d.rtt>300?' ⚠遅い':''} `:''):'切断中 '}${d.role?GN[d.role]:''}</small></span>
       <span class="seg"><button data-r="p" aria-pressed="${d.role==='p'}">大喜利</button><button data-r="j" aria-pressed="${d.role==='j'}">審査</button><button data-r="" aria-pressed="${!d.role}">なし</button></span>
       <button class="x" title="一覧から消す">✕</button>`;
     el.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>setRole(d,b.dataset.r||null));
