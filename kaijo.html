@@ -122,6 +122,8 @@ textarea{width:100%;box-sizing:border-box;min-height:120px;background:var(--pane
 .li .dt{font-family:var(--mono);font-size:12px;color:var(--mute)}
 .li.tie .dt{color:var(--warn);font-weight:700}
 .list .none{color:var(--mute);padding:24px;text-align:center}
+.li.pend{opacity:.45}
+.li.pend .dt{color:var(--warn)}
 </style>
 </head>
 <body>
@@ -176,6 +178,8 @@ textarea{width:100%;box-sizing:border-box;min-height:120px;background:var(--pane
       <h3>表示</h3>
       <label class="set">同時とみなす差（ミリ秒）<input type="number" id="tieMs" min="0" max="500" step="10" value="80"></label>
       <p class="note">この差より近い2人は「同時」と表示します（スマホの通信のゆらぎぶん）。</p>
+      <label class="set">下がった判定の猶予（ミリ秒）<input type="number" id="graceMs" min="0" max="10000" step="100" value="2500"></label>
+      <p class="note">手が下がったと来ても、この時間は列に残します（薄く表示）。その間に上げ直せば元の順位のまま。誤作動で一瞬下がった扱いになっても最後尾に回りません。</p>
     </section>
     <section>
       <h3>その他</h3>
@@ -196,9 +200,10 @@ const TEST=new URLSearchParams(location.search).has('test');
 const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const GN={p:'大喜利',j:'審査'};
 
-const cfg=Object.assign({tieMs:80},store.get('kyoshu-simple')||{});
+const cfg=Object.assign({tieMs:80,graceMs:2500},store.get('kyoshu-simple')||{});
 function save(){store.set('kyoshu-simple',cfg)}
 $('tieMs').value=cfg.tieMs;$('tieMs').onchange=()=>{cfg.tieMs=+$('tieMs').value||0;save();render();};
+$('graceMs').value=cfg.graceMs;$('graceMs').onchange=()=>{cfg.graceMs=Math.max(0,+$('graceMs').value||0);save();};
 for(const [b,sh] of [['setBtn','setSheet'],['qrBtn','qrSheet'],['peopleBtn','peopleSheet']])$(b).onclick=()=>{$(sh).hidden=false;renderPeople();};
 for(const [b,sh] of [['setClose','setSheet'],['qrClose','qrSheet'],['peopleClose','peopleSheet']])$(b).onclick=()=>{$(sh).hidden=true};
 for(const sh of ['setSheet','qrSheet','peopleSheet'])$(sh).addEventListener('click',e=>{if(e.target===$(sh))$(sh).hidden=true});
@@ -232,7 +237,9 @@ $('forgetAll').onclick=()=>{for(const d of [...devs.values()])if(!d.conn)devs.de
 $('resetRoles').onclick=()=>{for(const d of devs.values())setRole(d,null);toast('割り当てを消しました');};
 
 // ---------- 表示：グループごとに、上げた順
-const raised=r=>[...devs.values()].filter(d=>d.role===r&&d.conn&&d.up).sort((a,b)=>a.upAt-b.upAt);
+// 下がった判定のあと猶予時間が過ぎたら本当に下ろしたことにする
+function settle(){const t=now();for(const d of devs.values())if(d.pending&&t-d.pending>=cfg.graceMs){d.pending=0;d.up=false;}}
+const raised=r=>{settle();return [...devs.values()].filter(d=>d.role===r&&d.conn&&d.up).sort((a,b)=>a.upAt-b.upAt);};
 function render(){
   const t=now();
   for(const r of ['p','j']){
@@ -242,9 +249,9 @@ function render(){
     $('cnt'+r.toUpperCase()).textContent=q.length;
     if(!q.length){box.innerHTML='<div class="none">手が上がると、上げた順に並びます</div>';continue}
     q.forEach((d,k)=>{
-      const el=document.createElement('div');el.className='li';
+      const el=document.createElement('div');el.className='li'+(d.pending?' pend':'');
       const dt=k?d.upAt-q[k-1].upAt:0,tie=k&&dt<cfg.tieMs;if(tie)el.classList.add('tie');
-      el.innerHTML=`<span class="rank">${k+1}</span><span class="name">${esc(d.name)}</span><span class="dt">${k?(tie?'同時':`+${(dt/1000).toFixed(2)}s`):`${((t-d.upAt)/1000).toFixed(0)}s前`}</span>`;
+      el.innerHTML=`<span class="rank">${k+1}</span><span class="name">${esc(d.name)}</span><span class="dt">${d.pending?'下がった？':k?(tie?'同時':`+${(dt/1000).toFixed(2)}s`):`${((t-d.upAt)/1000).toFixed(0)}s前`}</span>`;
       box.appendChild(el);
     });
   }
@@ -254,7 +261,7 @@ function render(){
   for(const r of ['p','j'])raised(r).forEach((d,k)=>{if(d.qpos!==k+1){d.qpos=k+1;send(d,{type:'queue',pos:r==='p'?k+1:0});}});
   for(const d of devs.values())if(!d.up&&d.qpos){d.qpos=0;send(d,{type:'queue',pos:0});}
 }
-setInterval(render,1000);
+setInterval(render,250);
 
 // ---------- スマホとの接続
 let peer=null,peerId=store.get('kyoshu-kaijo-id');
@@ -278,7 +285,7 @@ function startPeer(retry){
       if(!x||x.id!==m.id){
         if(x&&x.conn===conn){x.conn=null;x.up=false;}
         x=dev(m.id);if(x.conn&&x.conn!==conn)try{x.conn.close()}catch(e){}
-        x.conn=conn;x.off=null;x.rtt=1e9;x.up=false;x.name=m.name||x.name;
+        x.conn=conn;x.off=null;x.rtt=1e9;x.up=false;x.pending=0;x.name=m.name||x.name;
         try{conn.send({type:'hello',seat:0,n:0})}catch(e){}
         sendAssign(x);persist();
         toast(`${x.name} がつながりました${x.role?`（${GN[x.role]}）`:'（グループを決めてください）'}`,!x.role);
@@ -289,17 +296,20 @@ function startPeer(retry){
       if(typeof m.up==='boolean'){
         const t=now();
         // 上げた時刻：スマホの時計で来ていれば補正して使う（通信の遅れに左右されない）
-        if(m.up&&!x.up){let at=t;if(m.et!=null&&x.off!=null){const c=m.et-x.off;if(c<=t+50&&c>t-5000)at=c;}x.upAt=at;}
-        x.up=m.up;render();
+        if(m.up){
+          if(x.pending){x.pending=0;}                       // 猶予中に上げ直し → 元の順位のまま
+          else if(!x.up){let at=t;if(m.et!=null&&x.off!=null){const c=m.et-x.off;if(c<=t+50&&c>t-5000)at=c;}x.upAt=at;x.up=true;}
+        }else if(x.up&&!x.pending){x.pending=cfg.graceMs>0?t:0;if(!cfg.graceMs)x.up=false;}
+        render();
       }
     });
-    conn.on('close',()=>{clearInterval(pingT);if(x&&x.conn===conn){x.conn=null;x.up=false;toast(`${x.name} のスマホが切れました`,true);renderPeople();render();}});
+    conn.on('close',()=>{clearInterval(pingT);if(x&&x.conn===conn){x.conn=null;x.up=false;x.pending=0;toast(`${x.name} のスマホが切れました`,true);renderPeople();render();}});
   });
 }
 render();startPeer(false);
 
 if(TEST)window.__kaijo={devs,cfg,setRole,raised,
-  fake(id,name,role,up,et){const x=dev(id);x.conn=x.conn||{open:true,send(){},close(){}};if(!x.name)x.name=name;if(role!==undefined&&x.role!==role)setRole(x,role);const t=now();if(up&&!x.up)x.upAt=et!=null?et:t;x.up=up;render();return x;}};
+  fake(id,name,role,up,et){const x=dev(id);x.conn=x.conn||{open:true,send(){},close(){}};if(!x.name)x.name=name;if(role!==undefined&&x.role!==role)setRole(x,role);const t=now();if(up){if(x.pending)x.pending=0;else if(!x.up){x.upAt=et!=null?et:t;x.up=true;}}else if(x.up&&!x.pending){x.pending=cfg.graceMs>0?t:0;if(!cfg.graceMs)x.up=false;}render();return x;}};
 })();
 </script>
 </body>
