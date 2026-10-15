@@ -124,11 +124,33 @@ textarea{width:100%;box-sizing:border-box;min-height:120px;background:var(--pane
 .list .none{color:var(--mute);padding:24px;text-align:center}
 .li.pend{opacity:.45}
 .li.pend .dt{color:var(--warn)}
+
+/* スマホで主催画面を見るとき */
+@media (max-width:700px){
+  body{padding:10px 12px;gap:10px;height:auto;min-height:100%;overflow:auto}
+  header{gap:6px}
+  header h1{font-size:15px;margin-right:0;width:100%}
+  header .sp{display:none}
+  header .pill{font-size:11px}
+  header button{padding:7px 10px;font-size:13px}
+  main{min-height:0}
+  .groups{display:flex;flex-direction:column;gap:10px}
+  .grp{padding:12px 14px;min-height:0}
+  .grp .ttl{font-size:18px}
+  .grp .cnt{font-size:44px}
+  .list{overflow:visible}
+  .li{padding:8px 12px;gap:10px}
+  .li .rank{font-size:22px}
+  .li .name{font-size:20px}
+  .panel{padding:14px}
+  .pe{flex-wrap:wrap}
+  .pe .nm{min-width:100%}
+}
 </style>
 </head>
 <body>
 <header>
-  <h1>挙手センサー 会場 <small style="font-size:11px;color:var(--mute);font-weight:400;margin-left:6px">v7</small></h1>
+  <h1>挙手センサー 会場 <small style="font-size:11px;color:var(--mute);font-weight:400;margin-left:6px">v8</small></h1>
   <span class="sp"></span>
   <span class="pill">接続 <b id="nAll">0</b>台（未割り当て <b id="nwTxt">0</b>）</span>
   <span class="pill"><span class="dot" id="netDot"></span><span id="netTxt">接続の準備中</span></span>
@@ -307,6 +329,9 @@ function startPeer(retry){
   });
 }
 render();startPeer(false);
+// スマホで開いたとき画面が消えないように（最初のタップで要求）
+let wl=null;async function wake(){try{if(navigator.wakeLock&&!wl){wl=await navigator.wakeLock.request('screen');wl.addEventListener('release',()=>{wl=null});}}catch(e){}}
+document.addEventListener('pointerdown',wake,{once:false});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')wake();});
 
 if(TEST)window.__kaijo={devs,cfg,setRole,raised,
   fake(id,name,role,up,et){const x=dev(id);x.conn=x.conn||{open:true,send(){},close(){}};if(!x.name)x.name=name;if(role!==undefined&&x.role!==role)setRole(x,role);const t=now();if(up){if(x.pending)x.pending=0;else if(!x.up){x.upAt=et!=null?et:t;x.up=true;}}else if(x.up&&!x.pending){x.pending=cfg.graceMs>0?t:0;if(!cfg.graceMs)x.up=false;}render();return x;}};
