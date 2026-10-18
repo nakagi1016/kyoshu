@@ -84,7 +84,7 @@ select{font:inherit;background:var(--panel2);color:var(--ink);border:0;border-ra
 </head>
 <body>
 <header>
-  <h1>挙手センサー 会場 <small style="font-size:11px;color:var(--mute);font-weight:400;margin-left:6px">v11</small></h1>
+  <h1>挙手センサー 会場 <small style="font-size:11px;color:var(--mute);font-weight:400;margin-left:6px">v12</small></h1>
   <div class="seg" role="group" aria-label="票の数え方">
     <button id="mode1" aria-pressed="true">片手（1人1票）</button>
     <button id="mode2" aria-pressed="false">両手（1人2票）</button>
@@ -103,7 +103,7 @@ select{font:inherit;background:var(--panel2);color:var(--ink);border:0;border-ra
       <button class="primary" id="camStart">カメラを開始</button>
       <p id="camMsg">審査員全員が画面に入り、手を上げても頭の上まで映る位置にカメラを置いてください。最初の起動は読み込みに10秒ほどかかります。</p>
     </div>
-    <div class="tip" id="camTip" hidden>白い縦線をドラッグすると席の区切りを動かせます</div>
+    <div class="tip" id="camTip" hidden>白い縦線で席の区切り、黄色い横線で「見る範囲」の上下を動かせます。後ろの人や物は範囲の外に出すと誤反応が減ります</div>
   </div>
 
   <div class="side">
@@ -145,7 +145,7 @@ select{font:inherit;background:var(--panel2);color:var(--ink);border:0;border-ra
       <h3>席</h3>
       <label class="set">審査員の人数<select id="nSeats"><option>1</option><option>2</option><option>3</option><option>4</option><option selected>5</option><option>6</option><option>7</option><option>8</option></select></label>
       <label class="set"><span>席番号を右から振る（カメラが審査員の正面にあるとき）</span><input type="checkbox" id="rtl"></label>
-      <button id="resetZones">席の区切りを均等に戻す</button>
+      <button id="resetZones">席の区切りと上下の範囲を元に戻す</button>
     </section>
     <section>
       <h3>カメラでの判定</h3>
@@ -156,6 +156,8 @@ select{font:inherit;background:var(--panel2);color:var(--ink);border:0;border-ra
       <p class="note">「確定」を押すと、直前1.5秒の間に手が上がった席を数えます。挙手を下ろした直後に押しても数えられます。</p>
       <label class="set">カメラ<select id="camSel"><option value="">標準のカメラ</option></select></label>
       <label class="set"><span>映像を左右反転して表示</span><input type="checkbox" id="mirror"></label>
+      <label class="set"><span>後ろの人・小さく映った人を無視する</span><input type="checkbox" id="sizeGate" checked></label>
+      <p class="note">席ごとに、いちばん大きく映った人の肩幅を覚えて、それより明らかに小さい（＝後ろにいる）人は数えません。手前の審査員が席を立つと、その席は「判定できない」になります。</p>
     </section>
     <section>
       <h3>カメラとスマホが食い違ったとき</h3>
@@ -173,20 +175,20 @@ const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){retu
 const TEST=new URLSearchParams(location.search).has('test');
 
 // ---------- 設定
-const cfg=Object.assign({n:5,rtl:false,camTh:0.1,mirror:false,policy:'cam',mode:1,zones:null,camId:'',model:'full'},store.get('kyoshu-pc')||{});
+const cfg=Object.assign({n:5,rtl:false,camTh:0.1,mirror:false,policy:'cam',mode:1,zones:null,camId:'',model:'full',yTop:0,yBot:1,sizeGate:true},store.get('kyoshu-pc')||{});
 if(!(cfg.v>=2)){cfg.camTh=0.1;cfg.model='full';cfg.v=2;} // 動画での検証結果に合わせて標準値を更新
 function save(){store.set('kyoshu-pc',cfg)}
 function evenZones(n){return Array.from({length:n-1},(_,i)=>(i+1)/n)}
 if(!cfg.zones||cfg.zones.length!==cfg.n-1)cfg.zones=evenZones(cfg.n);
 $('nSeats').value=cfg.n;$('rtl').checked=cfg.rtl;$('camTh').value=cfg.camTh;$('camThOut').textContent=(+cfg.camTh).toFixed(2);
-$('mirror').checked=cfg.mirror;$('policy').value=cfg.policy;$('model').value=cfg.model;
+$('mirror').checked=cfg.mirror;$('sizeGate').checked=cfg.sizeGate!==false;$('sizeGate').onchange=()=>{cfg.sizeGate=$('sizeGate').checked;save();};$('policy').value=cfg.policy;$('model').value=cfg.model;
 $('model').onchange=()=>{cfg.model=$('model').value;save();toast('次にカメラを開始したときから切り替わります');};
 $('nSeats').onchange=()=>{cfg.n=+$('nSeats').value;cfg.zones=evenZones(cfg.n);save();buildSeats();if(lmMake)ensureLms();};
 $('rtl').onchange=()=>{cfg.rtl=$('rtl').checked;save();};
 $('camTh').oninput=()=>{cfg.camTh=+$('camTh').value;$('camThOut').textContent=cfg.camTh.toFixed(2);save();};
 $('mirror').onchange=()=>{cfg.mirror=$('mirror').checked;save();};
 $('policy').onchange=()=>{cfg.policy=$('policy').value;save();};
-$('resetZones').onclick=()=>{cfg.zones=evenZones(cfg.n);save();toast('席の区切りを均等に戻しました')};
+$('resetZones').onclick=()=>{cfg.zones=evenZones(cfg.n);cfg.yTop=0;cfg.yBot=1;seatRef.length=0;save();toast('席の区切りと上下の範囲を元に戻しました')};
 function setMode(m){cfg.mode=m;save();$('mode1').setAttribute('aria-pressed',m===1);$('mode2').setAttribute('aria-pressed',m===2);for(const s of seats)s.ovr=null;}
 $('mode1').onclick=()=>setMode(1);$('mode2').onclick=()=>setMode(2);
 $('setBtn').onclick=()=>{$('setSheet').hidden=false};$('setClose').onclick=()=>{$('setSheet').hidden=true};
@@ -373,7 +375,7 @@ $('camStart').onclick=async()=>{
     // そこで席ごとに映像を切り出し、1席につき1人を検出する
     stage='モデル';const mname=cfg.model==='lite'?'lite':'full';
     const buf=await fetchModel(mname,(g,t)=>step(`骨格検出を読み込んでいます…（3/4 モデル ${t?Math.round(g/t*100)+'%':(g/1e6).toFixed(1)+'MB'}）`));
-    const opts=d=>({baseOptions:{modelAssetBuffer:buf,delegate:d},runningMode:'VIDEO',numPoses:1,minPoseDetectionConfidence:0.5,minPosePresenceConfidence:0.5,minTrackingConfidence:0.5});
+    const opts=d=>({baseOptions:{modelAssetBuffer:buf,delegate:d},runningMode:'VIDEO',numPoses:1,minPoseDetectionConfidence:0.6,minPosePresenceConfidence:0.6,minTrackingConfidence:0.5});
     stage='準備';step('骨格検出を読み込んでいます…（4/4 準備）');
     // GPUで作れないPCがある（固まる・失敗する）ので、時間切れならCPUに切り替える
     let dlg='GPU';
@@ -390,7 +392,7 @@ $('camStart').onclick=async()=>{
   camRunning=true;requestAnimationFrame(camLoop);
 };
 let lastVT=-1,fpsN=0,fpsT=0;
-let camDelegate='',lmBusy=false,lastFrameT=0,slowWarned=false;
+let rejected=0;const seatRef=[];let camDelegate='',lmBusy=false,lastFrameT=0,slowWarned=false;
 async function ensureLms(){ // 席の数だけ検出器を用意
   if(lmBusy)return;lmBusy=true;
   try{while(lms.length<cfg.n)lms.push(await lmMake());}catch(e){toast('検出器の追加に失敗しました：'+(e.message||e),true);}finally{lmBusy=false}
@@ -405,15 +407,27 @@ function camLoop(){
     const VW=video.videoWidth,VH=video.videoHeight,per=new Array(cfg.n).fill(null);
     for(let k=0;k<cfg.n;k++){
       const [x0,x1,a,b]=cropBox(k),sx=Math.round(x0*VW),sw=Math.max(8,Math.round((x1-x0)*VW));
+      // 上下も「見る範囲」だけ切り出す（後ろの壁・観客・天井を検出器に見せない）
+      const yT=Math.max(0,Math.min(0.9,cfg.yTop||0)),yB=Math.max(yT+0.1,Math.min(1,cfg.yBot??1)),sy0=Math.round(yT*VH),shh=Math.max(8,Math.round((yB-yT)*VH));
       const sc=Math.min(1,1080/VH),c=crops[k]||(crops[k]=document.createElement('canvas'));
-      const cw=Math.round(sw*sc),ch=Math.round(VH*sc);if(c.width!==cw||c.height!==ch){c.width=cw;c.height=ch;}
-      c.getContext('2d').drawImage(video,sx,0,sw,VH,0,0,cw,ch);
+      const cw=Math.round(sw*sc),ch=Math.round(shh*sc);if(c.width!==cw||c.height!==ch){c.width=cw;c.height=ch;}
+      c.getContext('2d').drawImage(video,sx,sy0,sw,shh,0,0,cw,ch);
       try{
         if(!lms[k])continue;
         const r=lms[k].detectForVideo(c,t),p=r.landmarks&&r.landmarks[0];if(!p)continue;
-        const q=p.map(l=>({x:(sx+l.x*sw)/VW,y:l.y,visibility:l.visibility}));
+        const q=p.map(l=>({x:(sx+l.x*sw)/VW,y:(sy0+l.y*shh)/VH,visibility:l.visibility}));
         const mid=(q[11].x+q[12].x)/2,tol=(b-a)*0.1;
         if(mid<a-tol||mid>b+tol)continue; // 隣の席の人をつかんだ
+        // 肩がはっきり見えていない骨格は使わない（背景の模様や物を人と見間違えたもの）
+        if((q[11].visibility??1)<0.5||(q[12].visibility??1)<0.5)continue;
+        // 肩幅（画素）。席の幅に対して小さすぎる・この席で覚えた肩幅より明らかに小さい＝後ろの人
+        const spx=Math.hypot((q[11].x-q[12].x)*VW,(q[11].y-q[12].y)*VH),zpx=(b-a)*VW;
+        if(cfg.sizeGate!==false){
+          if(spx<zpx*0.2){rejected++;continue;}
+          const ref=seatRef[k];
+          if(ref&&spx<ref*0.62){rejected++;continue;}
+          seatRef[k]=ref?Math.max(spx,ref*0.995):spx; // 大きく映った人を基準に（ゆっくり忘れる）
+        }
         per[k]=q;
       }catch(e){}
     }
@@ -421,7 +435,7 @@ function camLoop(){
     lastPoses=per.filter(Boolean);processSeatPoses(per,t);
     fpsN++;
   }
-  if(t-fpsT>1000){fps=fpsN;fpsN=0;fpsT=t;if(fps<5&&fps>0&&cfg.model!=='lite'&&!slowWarned&&t>15000){slowWarned=true;toast('カメラの処理が遅めです。設定の「骨格検出の精度」を軽量にすると速くなります',true);}$('camTxt').textContent=`${camLabel()}・検出 ${fps}回/秒${camDelegate==='CPU'?'（CPU）':''}${lms.length<cfg.n?`・準備中 ${lms.length}/${cfg.n}`:''}`;$('camTxt').title=camInfo?camInfo.label:'';$('camDot').className='dot '+(fps>=8?'on':'bad');}
+  if(t-fpsT>1000){fps=fpsN;fpsN=0;fpsT=t;if(fps<5&&fps>0&&cfg.model!=='lite'&&!slowWarned&&t>15000){slowWarned=true;toast('カメラの処理が遅めです。設定の「骨格検出の精度」を軽量にすると速くなります',true);}$('camTxt').textContent=`${camLabel()}・検出 ${fps}回/秒${camDelegate==='CPU'?'（CPU）':''}${lms.length<cfg.n?`・準備中 ${lms.length}/${cfg.n}`:''}${rejected?`・後ろの人を無視 ${rejected}`:''}`;rejected=0;$('camTxt').title=camInfo?camInfo.label:'';$('camDot').className='dot '+(fps>=8?'on':'bad');}
   draw();
 }
 
@@ -457,13 +471,13 @@ function processSeatPoses(per,t){
     const s=seats[k];if(!s)return;
     if(!b){return}
     const p=b.p,sy=Math.min(p[L.ls].y,p[L.rs].y);
-    const hand=(w)=>{if(!w||(w.visibility??1)<0.3)return null;return (sy-w.y)/b.sw;}; // 正：肩より上
+    const hand=(w)=>{if(!w||(w.visibility??1)<0.5)return null;return (sy-w.y)/b.sw;}; // 正：肩より上
     const hs=[hand(p[L.lw]),hand(p[L.rw])];
     const on=cfg.camTh,off=Math.max(-0.2,cfg.camTh-0.25);
     hs.forEach((h,i)=>{const H=s.hand[i];
       if(h==null){return}
       const want=H.up?h>off:h>=on;
-      if(want!==H.up){if(!H.cand||H.cand.v!==want)H.cand={v:want,t};else if(t-H.cand.t>=150){H.up=want;H.cand=null;}}else H.cand=null;
+      if(want!==H.up){if(!H.cand||H.cand.v!==want)H.cand={v:want,t};else if(t-H.cand.t>=(want?250:150)){H.up=want;H.cand=null;}}else H.cand=null;
     });
     s.cam={l:s.hand[0].up,r:s.hand[1].up};s.camSeen=t;s.camPose=b;s.camH=hs;s.hist.push({t,h:hs});
   });
@@ -474,14 +488,19 @@ function draw(){
   const W=cv.width,H=cv.height;ctx.save();
   if(cfg.mirror){ctx.translate(W,0);ctx.scale(-1,1);}
   if(video&&video.readyState>=2)ctx.drawImage(video,0,0,W,H);else{ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);}
-  // 区切り線と席番号
+  // 見る範囲の外を暗く
+  const yT=(cfg.yTop||0)*H,yB=(cfg.yBot??1)*H;
+  ctx.fillStyle='#000a';if(yT>0)ctx.fillRect(0,0,W,yT);if(yB<H)ctx.fillRect(0,yB,W,H-yB);
   ctx.lineWidth=Math.max(2,W/400);
+  for(const [y,which] of [[yT,'t'],[yB,'b']]){ctx.strokeStyle=dragY===which?'#fff':'#ffcf33';ctx.setLineDash([16,8]);ctx.beginPath();ctx.moveTo(0,Math.max(2,Math.min(H-2,y)));ctx.lineTo(W,Math.max(2,Math.min(H-2,y)));ctx.stroke();}
+  ctx.setLineDash([]);
+  // 区切り線と席番号
   const xs=[0,...cfg.zones,1];
   for(let i=0;i<cfg.zones.length;i++){const x=cfg.zones[i]*W;ctx.strokeStyle=dragI===i?'#ffcf33':'#ffffffcc';ctx.setLineDash([12,10]);ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
   ctx.setLineDash([]);
   for(let k=0;k<cfg.n;k++){
     const seatNo=cfg.rtl?cfg.n-k:k+1,cx=(xs[k]+xs[k+1])/2*W,s=seats[seatNo-1];
-    ctx.save();ctx.translate(cx,H*0.07);if(cfg.mirror)ctx.scale(-1,1);
+    ctx.save();ctx.translate(cx,Math.max(H*0.07,yT+H*0.06));if(cfg.mirror)ctx.scale(-1,1);
     const up=s&&s.cam&&(s.cam.l||s.cam.r);
     ctx.fillStyle=up?'#ffcf33':'#000a';ctx.beginPath();ctx.arc(0,0,H*0.045,0,Math.PI*2);ctx.fill();
     ctx.fillStyle=up?'#1a1400':'#fff';ctx.font=`bold ${Math.round(H*0.05)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(seatNo,0,H*0.003);ctx.restore();
@@ -498,11 +517,18 @@ function draw(){
   ctx.restore();
 }
 // 区切り線のドラッグ
-let dragI=-1;
+let dragI=-1,dragY=null;
 function toX(e){const r=cv.getBoundingClientRect();let x=(e.clientX-r.left)/r.width;if(cfg.mirror)x=1-x;return x;}
-cv.addEventListener('pointerdown',e=>{const x=toX(e);let bi=-1,bd=0.03;cfg.zones.forEach((z,i)=>{const d=Math.abs(z-x);if(d<bd){bd=d;bi=i}});if(bi>=0){dragI=bi;cv.setPointerCapture(e.pointerId);}});
-cv.addEventListener('pointermove',e=>{if(dragI<0)return;const x=toX(e);const lo=(cfg.zones[dragI-1]??0)+0.03,hi=(cfg.zones[dragI+1]??1)-0.03;cfg.zones[dragI]=Math.min(hi,Math.max(lo,x));});
-cv.addEventListener('pointerup',()=>{if(dragI>=0){dragI=-1;save();}});
+function toY(e){const r=cv.getBoundingClientRect();return (e.clientY-r.top)/r.height;}
+cv.addEventListener('pointerdown',e=>{const x=toX(e),y=toY(e);
+  // 横線（見る範囲の上下）を優先：近い方をつかむ
+  const dt=Math.abs(y-(cfg.yTop||0)),db=Math.abs(y-(cfg.yBot??1));
+  if(Math.min(dt,db)<0.04){dragY=dt<=db?'t':'b';cv.setPointerCapture(e.pointerId);return;}
+  let bi=-1,bd=0.03;cfg.zones.forEach((z,i)=>{const d=Math.abs(z-x);if(d<bd){bd=d;bi=i}});if(bi>=0){dragI=bi;cv.setPointerCapture(e.pointerId);}});
+cv.addEventListener('pointermove',e=>{
+  if(dragY){const y=Math.max(0,Math.min(1,toY(e)));if(dragY==='t')cfg.yTop=Math.min(y,(cfg.yBot??1)-0.15);else cfg.yBot=Math.max(y,(cfg.yTop||0)+0.15);return;}
+  if(dragI<0)return;const x=toX(e);const lo=(cfg.zones[dragI-1]??0)+0.03,hi=(cfg.zones[dragI+1]??1)-0.03;cfg.zones[dragI]=Math.min(hi,Math.max(lo,x));});
+cv.addEventListener('pointerup',()=>{if(dragI>=0||dragY){dragI=-1;dragY=null;seatRef.length=0;save();}});
 if(!camRunning)draw();
 
 // ---------- テスト用（?test のときだけ）
