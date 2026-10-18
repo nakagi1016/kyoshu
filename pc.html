@@ -84,7 +84,7 @@ select{font:inherit;background:var(--panel2);color:var(--ink);border:0;border-ra
 </head>
 <body>
 <header>
-  <h1>挙手センサー 会場 <small style="font-size:11px;color:var(--mute);font-weight:400;margin-left:6px">v8</small></h1>
+  <h1>挙手センサー 会場 <small style="font-size:11px;color:var(--mute);font-weight:400;margin-left:6px">v9</small></h1>
   <div class="seg" role="group" aria-label="票の数え方">
     <button id="mode1" aria-pressed="true">片手（1人1票）</button>
     <button id="mode2" aria-pressed="false">両手（1人2票）</button>
@@ -311,7 +311,7 @@ startPeer(false);
 
 // ---------- カメラ（MediaPipe Pose）
 const cv=$('cv'),ctx=cv.getContext('2d');
-let video=null,lms=[],lmMake=null,camRunning=false,lastPoses=[],fps=0;
+let camInfo=null,video=null,lms=[],lmMake=null,camRunning=false,lastPoses=[],fps=0;
 const crops=[]; // 席ごとの切り出し用キャンバス
 const MP='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
 const MODEL=m=>`https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${m}/float16/1/pose_landmarker_${m}.task`;
@@ -320,10 +320,11 @@ $('camSel').onchange=()=>{cfg.camId=$('camSel').value;save();if(camRunning)openC
 async function openCam(){
   if(video&&video.srcObject)video.srcObject.getTracks().forEach(t=>t.stop());
   video=video||Object.assign(document.createElement('video'),{muted:true,playsInline:true});
-  const c={width:{ideal:1280},height:{ideal:720}};if(cfg.camId)c.deviceId={exact:cfg.camId};
+  const c={width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30}};if(cfg.camId)c.deviceId={exact:cfg.camId};
   video.srcObject=await navigator.mediaDevices.getUserMedia({video:c,audio:false});
   await video.play();
   cv.width=video.videoWidth||1280;cv.height=video.videoHeight||720;
+  try{const st=video.srcObject.getVideoTracks()[0].getSettings();camInfo={w:st.width||video.videoWidth,h:st.height||video.videoHeight,fps:Math.round(st.frameRate||0),label:video.srcObject.getVideoTracks()[0].label||''};}catch(e){camInfo={w:video.videoWidth,h:video.videoHeight,fps:0,label:''};}
 }
 $('camStart').onclick=async()=>{
   $('camStart').disabled=true;$('camMsg').textContent='カメラを起動しています…';
@@ -359,7 +360,7 @@ function camLoop(){
     const VW=video.videoWidth,VH=video.videoHeight,per=new Array(cfg.n).fill(null);
     for(let k=0;k<cfg.n;k++){
       const [x0,x1,a,b]=cropBox(k),sx=Math.round(x0*VW),sw=Math.max(8,Math.round((x1-x0)*VW));
-      const sc=Math.min(1,480/VH),c=crops[k]||(crops[k]=document.createElement('canvas'));
+      const sc=Math.min(1,1080/VH),c=crops[k]||(crops[k]=document.createElement('canvas'));
       const cw=Math.round(sw*sc),ch=Math.round(VH*sc);if(c.width!==cw||c.height!==ch){c.width=cw;c.height=ch;}
       c.getContext('2d').drawImage(video,sx,0,sw,VH,0,0,cw,ch);
       try{
@@ -374,7 +375,7 @@ function camLoop(){
     lastPoses=per.filter(Boolean);processSeatPoses(per,t);
     fpsN++;
   }
-  if(t-fpsT>1000){fps=fpsN;fpsN=0;fpsT=t;if(fps<5&&fps>0&&cfg.model!=='lite'&&!slowWarned&&t>15000){slowWarned=true;toast('カメラの処理が遅めです。設定の「骨格検出の精度」を軽量にすると速くなります',true);}$('camTxt').textContent=`カメラ ${fps}fps`;$('camDot').className='dot '+(fps>=8?'on':'bad');}
+  if(t-fpsT>1000){fps=fpsN;fpsN=0;fpsT=t;if(fps<5&&fps>0&&cfg.model!=='lite'&&!slowWarned&&t>15000){slowWarned=true;toast('カメラの処理が遅めです。設定の「骨格検出の精度」を軽量にすると速くなります',true);}$('camTxt').textContent=camInfo?`${camInfo.w}×${camInfo.h}${camInfo.fps?` ${camInfo.fps}fps`:''}・検出 ${fps}回/秒`:`検出 ${fps}回/秒`;$('camTxt').title=camInfo?camInfo.label:'';$('camDot').className='dot '+(fps>=8?'on':'bad');}
   draw();
 }
 
